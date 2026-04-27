@@ -1,6 +1,6 @@
 ![ESPC-x86](doc/ESPC.png)
 
-# ESPC-86
+# ESPC-x86
 
 <p align="center">
   <b>PC/XT 8086 ESP32-Emulation</b><br>
@@ -22,13 +22,7 @@
 
 **ESPC‑86** (PC/XT 8086 ESP32‑Emulation) is an emulator of a classic **IBM PC/XT (8086)** computer running on an **ESP32** microcontroller.
 
-The project is specially designed for the **TTGo VGA32** board, providing:
-
-- VGA video output (monitor or TV)
-- PS/2 keyboard input
-- PS/2 mouse input
-
-With ESPC‑86, the ESP32 becomes a fully functional retro PC capable of running classic **DOS software**, recreating the experience of an early IBM‑compatible computer using inexpensive modern hardware.
+The project is specially designed for the **TTGo VGA32** board. With ESPC‑86, the ESP32 becomes a fully functional retro PC capable of running classic **DOS software** and **Games**, recreating the experience of an early IBM‑compatible computer using inexpensive modern hardware.
 
 ## Hardware
 
@@ -38,7 +32,7 @@ ESPC‑86 is primarily developed and tested on the following board:
 
 - **TTGo VGA32**
   - ESP32-WROVER-E module with 4MB Flash 8MB PSRAM 520KB SRAM
-  - VGA output
+  - VGA video output
   - 2 × PS/2 ports (keyboard and mouse)
   - Micro SD card
   - Micro-USB for power and programming/debug
@@ -46,21 +40,15 @@ ESPC‑86 is primarily developed and tested on the following board:
   - Audio 3.5 mm connector
   https://lilygo.cc/en-us/products/fabgl-vga32
 
-### Peripherals
-
-- VGA monitor or VGA‑to‑TV adapter
-- PS/2 keyboard
-- PS/2 mouse
-
 ## Features
 
-- Emulation of an **IBM PC/XT (8086 CPU)**
-- VGA video output
-- PS/2 keyboard support
-- PS/2 mouse support
-- Designed for low‑cost ESP32 hardware
-- Based on proven open‑source emulation cores
-- Easy firmware installation using a web flasher
+- Intel 8086 processor emulation compatible with PC/XT era software.
+- CGA graphics card emulation (40×25 and 80×25 text modes, 320x200 4‑color and 640x200 2‑color graphics modes).
+- Hercules/monochrome (HGC/MDA) graphics card emulation with 720x348 monochrome graphics mode.
+- Tandy graphics emulation supporting 160x200 and 320x200 graphics modes with 16 colors.
+- Partial EGA graphics card emulation (up to 128 KB VRAM, 320x200 16-colors graphics mode).
+- PC Speaker / buzzer sound emulation.
+- AdLib (OPL2) sound card emulation.
 
 ## Installation
 
