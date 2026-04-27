@@ -30,27 +30,27 @@ The project is specially designed for the **TTGo VGA32** board, providing:
 
 With ESPC‑86, the ESP32 becomes a fully functional retro PC capable of running classic **DOS software**, recreating the experience of an early IBM‑compatible computer using inexpensive modern hardware.
 
----
-
 ## Hardware
 
 ESPC‑86 is primarily developed and tested on the following board:
 
-### ✅ Supported board
+### Supported board
 
 - **TTGo VGA32**
-  - ESP32 microcontroller
+  - ESP32-WROVER-E module with 4MB Flash 8MB PSRAM 520KB SRAM
   - VGA output
   - 2 × PS/2 ports (keyboard and mouse)
-  - Optional SD card support (depending on configuration)
+  - Micro SD card
+  - Micro-USB for power and programming/debug
+  - Buzzer
+  - Audio 3.5 mm connector
+  https://lilygo.cc/en-us/products/fabgl-vga32
 
-### 🔌 Peripherals
+### Peripherals
 
 - VGA monitor or VGA‑to‑TV adapter
 - PS/2 keyboard
 - PS/2 mouse
-
----
 
 ## Features
 
@@ -61,8 +61,6 @@ ESPC‑86 is primarily developed and tested on the following board:
 - Designed for low‑cost ESP32 hardware
 - Based on proven open‑source emulation cores
 - Easy firmware installation using a web flasher
-
----
 
 ## Installation
 
@@ -79,8 +77,6 @@ The easiest way to install ESPC‑86 is using the **online firmware flasher**.
 
 > Make sure no other application is using the serial port before flashing.
 
----
-
 ## Controls
 
 ### Keyboard
@@ -93,8 +89,6 @@ The easiest way to install ESPC‑86 is using the **online firmware flasher**.
 - Standard **PS/2 mouse**
 - Used by supported software and operating systems
 
----
-
 ## Project Status
 
 ESPC‑86 is under active development.
@@ -106,31 +100,25 @@ The project is:
 
 Feedback, testing, and contributions are welcome.
 
----
-
 ## Origins and Credits
 
 This project is a **fork and continuation of FabGL**, and includes code derived from **8086tiny**.
 
 - **FabGL**  
-  Copyright © Fabrizio Di Vittorio  
-  https://github.com/fdivitto/FabGL
+  Copyright (c) Fabrizio Di Vittorio  
+  https://github.com/fdivitto/FabGL - http://www.fabgl.com
 
 - **8086tiny**  
-  Copyright © Adrian Cable  
+  Copyright (c) Adrian Cable  
   Licensed under the MIT License
 
 ESPC‑86 extends, modifies, and integrates these works into a dedicated PC/XT emulator for ESP32.
-
----
 
 ## License
 
 This project is released under the **GNU General Public License v3.0 (GPL‑3.0 or later)**.
 
 See the `LICENSE` file for details.
-
----
 
 ## Author
 
