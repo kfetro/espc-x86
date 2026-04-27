@@ -30,19 +30,19 @@ ESPC‑86 is primarily developed and tested on the following board:
 
 ### Supported board
 
-- **TTGo VGA32**
-  - ESP32-WROVER-E module with 4MB Flash 8MB PSRAM 520KB SRAM
-  - VGA video output
-  - 2 × PS/2 ports (keyboard and mouse)
-  - Micro SD card
+- **LilyGo TTGo VGA32** https://lilygo.cc/en-us/products/fabgl-vga32
+  - ESP32-WROVER-E module with 4MB Flash, 8MB PSRAM, 520KB SRAM
   - Micro-USB for power and programming/debug
-  - Buzzer
-  - Audio 3.5 mm connector
-  https://lilygo.cc/en-us/products/fabgl-vga32
+  - VGA video output
+  - 2 x PS/2 ports (keyboard and mouse)
+  - Micro SD card
+  - Buzzer connection 2.0mm 2-pin terminal https://es.aliexpress.com/item/1005005699690954.html
+  - Audio jack 3.5mm connector
 
 ## Features
 
 - Intel 8086 processor emulation compatible with PC/XT era software.
+- PS/2 keyboard and mouse support.
 - CGA graphics card emulation (40×25 and 80×25 text modes, 320x200 4‑color and 640x200 2‑color graphics modes).
 - Hercules/monochrome (HGC/MDA) graphics card emulation with 720x348 monochrome graphics mode.
 - Tandy graphics emulation supporting 160x200 and 320x200 graphics modes with 16 colors.
