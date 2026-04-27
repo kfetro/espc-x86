@@ -1,0 +1,75 @@
+/*
+ * Copyright (c) 2026 Jesus Martinez-Mateo
+ *
+ * Author: Jesus Martinez-Mateo <jesus.martinez.mateo@gmail.com>
+ *
+ * This file is part of a GPL-licensed project.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+
+#include <stdint.h>
+#include <stdbool.h>
+
+#define SD_MOUNT_PATH  "/sdcard"
+#define FAT_MOUNT_PATH "/fat"
+
+#define MAX_FILEPATH_LEN 256
+
+// Path to emulator configuration file
+#define SETUP_CONFIG_PATH "/sdcard/i8086/setup.cfg"
+
+// Default paths
+#define SETUP_DEFAULT_DISKS_PATH "/i8086/dsk"
+#define SETUP_DEFAULT_IMAGE_PATH "/i8086/img"
+
+// Default values
+#define SETUP_DEFAULT_VIDEO     0   // CGA
+#define SETUP_DEFAULT_SOUND     0   // none
+#define SETUP_DEFAULT_SPEAKER   1
+#define SETUP_DEFAULT_JOYSTICK  0
+
+#define SETUP_DEFAULT_RAM       640 // KB
+#define SETUP_DEFAULT_KEYBOARD  0   // XT
+#define SETUP_DEFAULT_TURBO     0
+#define SETUP_DEFAULT_MOUSE     0
+
+#define SETUP_DEFAULT_BOOT      2   // C:
+
+// Emulator setup structure
+struct Setup {
+  uint8_t  video;              // VideoAdapterType
+  uint8_t  sound;              // 0 = none, 1 = adlib
+  bool     speaker;            // PC speaker enabled
+  uint8_t  joystick;           // 0 = none, 1 = game port
+
+  uint16_t ram;                // RAM size in KB
+  uint8_t  keyboard;           // 0 = XT, 1 = AT
+  bool     turbo;               // Turbo mode
+  bool     mouse;               // Mouse enabled
+
+  char     disks_path[128];    // Path to ZIP files
+  char     image_path[128];    // Path to disk images
+
+  char     drive[4][128];      // A:..D: (filenames or relative paths)
+  uint8_t  boot;                // Boot drive index (0..3)
+};
+
+// Load configuration from SETUP_CONFIG_PATH
+bool setupLoad(const char *path, Setup *cfg);
+
+// Save configuration to SETUP_CONFIG_PATH
+bool setupSave(const char *path, const Setup *cfg);
