@@ -1,6 +1,6 @@
-![ESPC-x86](https://aristoteles.dma.fi.upm.es/espc-86/ESPC.png)
+![ESPC-x86](doc/ESPC.png)
 
-<h1 align="center">ESPC-86</h1>
+# ESPC-86
 
 <p align="center">
   <b>PC/XT 8086 ESP32-Emulation</b><br>
