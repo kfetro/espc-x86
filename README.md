@@ -8,17 +8,17 @@
 </p>
 
 <p align="center">
-  #what-is-espc-86What is ESPC‑86?</a> •
+  #what-is-espc-x86 •
   #hardware •
-  #featuresFeatures</a> •
-  #installationInstallation</a> •
-  #controls> •
-  #licenseLicense</a>
+  #features •
+  #installation •
+  #controls •
+  #licenseLicense
 </p>
 
 ---
 
-## What is ESPC‑86?
+## What is ESPC‑x86?
 
 **ESPC‑86** (PC/XT 8086 ESP32‑Emulation) is an emulator of a classic **IBM PC/XT (8086)** computer running on an **ESP32** microcontroller.
 
@@ -54,13 +54,13 @@ ESPC‑86 is primarily developed and tested on the following board:
 
 ## Features
 
-- ✅ Emulation of an **IBM PC/XT (8086 CPU)**
-- ✅ VGA video output
-- ✅ PS/2 keyboard support
-- ✅ PS/2 mouse support
-- ✅ Designed for low‑cost ESP32 hardware
-- ✅ Based on proven open‑source emulation cores
-- ✅ Easy firmware installation using a web flasher
+- Emulation of an **IBM PC/XT (8086 CPU)**
+- VGA video output
+- PS/2 keyboard support
+- PS/2 mouse support
+- Designed for low‑cost ESP32 hardware
+- Based on proven open‑source emulation cores
+- Easy firmware installation using a web flasher
 
 ---
 
@@ -68,16 +68,16 @@ ESPC‑86 is primarily developed and tested on the following board:
 
 The easiest way to install ESPC‑86 is using the **online firmware flasher**.
 
-### 🌐 Online flasher (recommended)
+### Online flasher (recommended)
 
 1. Connect your **TTGo VGA32** board to your computer via USB
 2. Open the following link in a Chromium‑based browser (Chrome, Edge, Brave, etc.):
 
-   👉 **https://aristoteles.dma.fi.upm.es/espc-86/**
+   **https://aristoteles.dma.fi.upm.es/espc-86/**
 
 3. Follow the instructions on the webpage to flash the firmware
 
-> ⚠️ Make sure no other application is using the serial port before flashing.
+> Make sure no other application is using the serial port before flashing.
 
 ---
 
