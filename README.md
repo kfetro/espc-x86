@@ -1,6 +1,4 @@
-<p align="center">
-  https://aristoteles.dma.fi.upm.es/espc-86/ESPC.png
-</p>
+![ESPC-x86](https://aristoteles.dma.fi.upm.es/espc-86/ESPC.png)
 
 <h1 align="center">ESPC-86</h1>
 
