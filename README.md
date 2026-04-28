@@ -80,6 +80,7 @@ The easiest way to install ESPC‑x86 is using the **online firmware flasher**.
 - **Ctrl+F2 / F3: Mount Floppy/Hard Disk** (Opens a file browser to mount images, supports .zip files)
 - **Ctrl+F5: Mute**
 - **Ctrl+F6 / F7: Volume Down/Up** (Displays an OSD level indicator in text mode)
+- **Ctrl+F8: Snapshot**
 - **Ctrl+F11: Hard Reset** (Physical reset button simulation)
 - **Ctrl+F12: Soft Reboot** (Warm boot / Ctrl+Alt+Del)
 
