@@ -105,6 +105,7 @@ This project is a **fork and continuation of FabGL**, and includes code derived 
 - [FabGL](https://github.com/fdivitto/FabGL) Copyright (c) Fabrizio Di Vittorio http://www.fabgl.com
 - [8086tiny](https://github.com/adriancable/8086tiny) Copyright (c) Adrian Cable, licensed under the MIT License.
 - [GLaBIOS](https://github.com/640-KB/GLaBIOS)
+- [unzipLIB](https://github.com/bitbank2/unzipLIB)
 
 ESPC‑86 extends, modifies, and integrates these works into a dedicated PC/XT emulator for ESP32.
 
