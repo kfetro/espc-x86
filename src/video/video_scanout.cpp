@@ -1441,20 +1441,20 @@ void drawOSDVolume(VideoScanout *device, int pixelsLine, int scanLines, int char
   constexpr int totalLines = 2 * totalColorLines - 1;
 
   // Right margin = 2 characters = 16 pixels
-  constexpr int rightMarginPx   = 16;
+  constexpr int rightMargin   = 16;
 
   // Label: "VOLUME"
   constexpr int textLen         = 6;
-  constexpr int textWidthPx     = textLen * charWidth;   // 6 * 8 = 48
+  constexpr int textWidth     = textLen * charWidth;   // 6 * 8 = 48
 
   // Meter width in pixels
-  constexpr int meterWidthPx    = totalLines * lineWidth;
+  constexpr int meterWidth    = totalLines * lineWidth;
 
   // Align both rows to the same right-aligned block
-  constexpr int blockWidthPx    = (textWidthPx > meterWidthPx) ? textWidthPx : meterWidthPx;
+  constexpr int blockWidth    = (textWidth > meterWidth) ? textWidth : meterWidth;
 
   // Block start X (right-aligned with margin)
-  const int osdStartX = pixelsLine - rightMarginPx - blockWidthPx;
+  const int osdStartX = (pixelsLine - rightMargin - blockWidth) & ~7;
 
   const uint8_t bg  = device->m_OSD_rawPixelBg;  // background (black)
   const uint8_t fgH = device->m_OSD_rawPixelFgH; // bright foreground (yellow)
@@ -1490,9 +1490,9 @@ void drawOSDVolume(VideoScanout *device, int pixelsLine, int scanLines, int char
       }
 
       // If meter is wider than text, clear the rest of the block to black
-      if (meterWidthPx > textWidthPx) {
-        uint8_t *p = line + osdStartX + textWidthPx;
-        const int fill = meterWidthPx - textWidthPx;
+      if (meterWidth > textWidth) {
+        uint8_t *p = line + osdStartX + textWidth;
+        const int fill = meterWidth - textWidth;
         for (int i = 0; i < fill; i++) {
           p[i] = bg;
         }
@@ -1503,9 +1503,9 @@ void drawOSDVolume(VideoScanout *device, int pixelsLine, int scanLines, int char
     const int activeLines = (device->m_OSD_volumeLevel * totalColorLines) / 127;
 
     for (int sl = 0; sl < scanLines; sl++) {
-      uint8_t *line = dstBase + sl * pixelsLine;
-      uint8_t *p = line + osdStartX; // meter starts at the block start
+      uint8_t *row = dstBase + sl * pixelsLine;
 
+      int x = osdStartX;
       int lineIndex = 0; // Colored line index
       for (int i = 0; i < totalLines; i++) {
         uint8_t color;
@@ -1519,9 +1519,9 @@ void drawOSDVolume(VideoScanout *device, int pixelsLine, int scanLines, int char
         }
 
         for (int w = 0; w < lineWidth; w++) {
-          p[w] = color;
+          row[(x + w) ^ 2] = color;
         }
-        p += lineWidth;
+        x += lineWidth;
       }
     }
   }
@@ -1547,15 +1547,19 @@ void drawOSDPause(VideoScanout *device, int pixelsLine, int scanLines, int charS
   uint8_t *dstBase = dst - pixelsLine;
 
   // Layout constants
-  constexpr int rightMarginPx = 16;     // 2 characters margin
-  constexpr int textLen = 5;            // "PAUSE"
-  constexpr int textWidthPx = textLen * charWidth;  // 5 * 8 = 40
-  constexpr int gapPx = charWidth;      // one character gap (8px)
-  constexpr int iconWidthPx = 16;        // icon box for "||"
-  constexpr int osdWidthPx = textWidthPx + gapPx + iconWidthPx;
+  constexpr int rightMargin = 16;                // 2 characters margin (in pixels)
+  constexpr int textLen = 5;                     // "PAUSE"
+  constexpr int textWidth = textLen * charWidth; // 5 * 8 = 40 (in pixels)
+  constexpr int gap = charWidth;                 // one character gap (8px)
+  
+  constexpr int pauseBarWidth = 4;
+  constexpr int pauseBarGap = 4;
+
+  constexpr int iconWidth = (pauseBarWidth * 2) + pauseBarGap;
+  constexpr int osdWidth = textWidth + gap + iconWidth;
 
   // Right-aligned start position
-  const int osdStartX = pixelsLine - rightMarginPx - osdWidthPx;
+  const int osdStartX = (pixelsLine - rightMargin - osdWidth) & ~7;
 
   // Safety guard
   if (osdStartX < 0)
@@ -1596,33 +1600,25 @@ void drawOSDPause(VideoScanout *device, int pixelsLine, int scanLines, int charS
     }
 
     // Draw gap (black)
-    {
-      uint8_t *p = line + osdStartX + textWidthPx;
-      for (int i = 0; i < gapPx; ++i)
-        p[i] = bg;
-    }
+    uint8_t *p = line + osdStartX + textWidth;
+    for (int i = 0; i < gap; ++i)
+      p[i] = bg;
 
-    // Draw "||" icon inside an 8px box
-    // Two vertical bars, each 2px wide, with spacing.
-    {
-      uint8_t *p = line + osdStartX + textWidthPx + gapPx;
+    // Draw "||" icon
+    const int iconX = osdStartX + textWidth + gap;
 
-      // Clear icon box background
-      for (int i = 0; i < iconWidthPx; ++i)
-        p[i] = bg;
+    // Clear icon area
+    for (int i = 0; i < iconWidth; ++i)
+      line[(iconX + i) ^ 2] = bg;
 
-      // Left bar: x = 1..2
-      p[0] = fg;
-      p[1] = fg;
-      p[2] = fg;
-      p[3] = fg;
+    // Left bar: starts at 0
+    for (int i = 0; i < pauseBarWidth; ++i)
+      line[(iconX + i) ^ 2] = fg;
 
-      // Right bar: x = 5..6
-      p[8] = fg;
-      p[9] = fg;
-      p[10] = fg;
-      p[11] = fg;
-    }
+    // Right bar: starts after gap
+    const int rightBarX = iconX + pauseBarWidth + pauseBarGap;
+    for (int i = 0; i < pauseBarWidth; ++i)
+      line[(rightBarX + i) ^ 2] = fg;
   }
 }
 
