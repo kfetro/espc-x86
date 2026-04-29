@@ -22,7 +22,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdbool.h>
 
 #define SD_MOUNT_PATH  "/sdcard"
 #define FAT_MOUNT_PATH "/fat"
@@ -51,21 +50,21 @@
 
 // Emulator setup structure
 struct Setup {
-  uint8_t  video;              // VideoAdapterType
-  uint8_t  sound;              // 0 = none, 1 = adlib
-  bool     speaker;            // PC speaker enabled
-  uint8_t  joystick;           // 0 = none, 1 = game port
+  uint8_t  video;            // VideoAdapterType
+  uint8_t  sound;            // 0 = none, 1 = adlib
+  bool     speaker;          // PC speaker enabled
+  uint8_t  joystick;         // 0 = none, 1 = game port
 
-  uint16_t ram;                // RAM size in KB
-  uint8_t  keyboard;           // 0 = XT, 1 = AT
-  bool     turbo;               // Turbo mode
-  bool     mouse;               // Mouse enabled
+  uint16_t ram;              // RAM size in KB
+  uint8_t  keyboard;         // 0 = XT, 1 = AT
+  bool     turbo;            // Turbo mode
+  bool     mouse;            // Mouse enabled
 
-  char     disks_path[128];    // Path to ZIP files
-  char     image_path[128];    // Path to disk images
+  char     disks_path[128];  // Path to ZIP files
+  char     image_path[128];  // Path to disk images
 
-  char     drive[4][128];      // A:..D: (filenames or relative paths)
-  uint8_t  boot;                // Boot drive index (0..3)
+  char     drive[4][128];    // A:..D: (filenames or relative paths)
+  uint8_t  boot;             // Boot drive index (0..3)
 };
 
 // Load configuration from SETUP_CONFIG_PATH

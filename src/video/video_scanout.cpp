@@ -1162,6 +1162,10 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_320x200x4(void *ctx, uint8_t *dst,
 
   auto device = (VideoScanout *) ctx;
 
+  if (scanLine == 0) {
+    device->m_frameCounter++;
+  }
+
   // Offset 0x0000 for even scan lines (bit 0=0), lines 0, 2, 4...
   // Offset 0x2000 for odd scan lines  (bit 0=1), lines 1, 3, 5...
   auto src = device->m_vram + ((scanLine & 1) << 13) + bytesLine * (scanLine >> 1);
@@ -1182,6 +1186,10 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_640x200x2(void *ctx, uint8_t *dst,
 
   auto device = (VideoScanout *) ctx;
 
+  if (scanLine == 0) {
+    device->m_frameCounter++;
+  }
+
   // Offset 0x0000 for even scan lines (bit 0=0), lines 0, 2, 4...
   // Offset 0x2000 for odd scan lines  (bit 0=1), lines 1, 3, 5...
   auto src = device->m_vram + ((scanLine & 1) << 13) + bytesLine * (scanLine >> 1);
@@ -1201,6 +1209,10 @@ void IRAM_ATTR VideoScanout::drawScanline_tandy_320x200x16(void *ctx, uint8_t *d
   constexpr int bytesLine = pixelsLine / pixelsByte; // Bytes per line
 
   auto device = (VideoScanout *) ctx;
+
+  if (scanLine == 0) {
+    device->m_frameCounter++;
+  }
 
   const uint32_t bank_order[] = {2, 3, 0, 1};
   const uint32_t bank = bank_order[scanLine & 3];
@@ -1249,6 +1261,10 @@ void IRAM_ATTR VideoScanout::drawScanline_tandy_640x200x4(void *ctx, uint8_t *ds
 
   auto device = (VideoScanout *) ctx;
 
+  if (scanLine == 0) {
+    device->m_frameCounter++;
+  }
+
   // Offset 0x0000 for even scan lines (bit 0=0), lines 0, 2, 4...
   // Offset 0x2000 for odd scan lines  (bit 0=1), lines 1, 3, 5...
   auto src = device->m_vram + ((scanLine & 1) << 13) + bytesLine * (scanLine >> 1);
@@ -1270,6 +1286,8 @@ void IRAM_ATTR VideoScanout::drawScanline_ega_320x200x16(void *ctx, uint8_t *dst
   auto device = (VideoScanout *) ctx;
 
   if (scanLine == 0) {
+    device->m_frameCounter++;
+
     auto vcard = (ScanoutContext *) device->m_context;
   	device->m_startAddress = 0;//vcard->startAddress();
   	device->m_colorPlaneEnable = 0x0f;//vcard->colorPlaneEnable();
@@ -1378,6 +1396,8 @@ void IRAM_ATTR VideoScanout::drawScanline_ega_640x200x16(void *ctx, uint8_t *dst
   auto device = (VideoScanout *) ctx;
 
   if (scanLine == 0) {
+    device->m_frameCounter++;
+
     auto vcard = (ScanoutContext *) device->m_context;
   	device->m_startAddress = vcard->startAddress();
   	device->m_colorPlaneEnable = vcard->colorPlaneEnable();
@@ -1444,6 +1464,10 @@ void IRAM_ATTR VideoScanout::drawScanline_mda_720x348x2(void *ctx, uint8_t *dst,
 
   auto device = (VideoScanout *) ctx;
 
+  if (scanLine == 0) {
+    device->m_frameCounter++;
+  }
+
   // Ensure LUT exists (built in updateLUT when width/height match)
   const uint64_t *LUT64 = (uint64_t *) device->m_rawPixelLUT;
 
@@ -1474,6 +1498,8 @@ void IRAM_ATTR VideoScanout::drawScanline_ega_640x350x16(void *ctx, uint8_t *dst
   auto device = (VideoScanout *) ctx;
 
   if (scanLine == 0) {
+    device->m_frameCounter++;
+
     auto vcard = (ScanoutContext *) device->m_context;
   	device->m_startAddress = vcard->startAddress();
   	device->m_colorPlaneEnable = vcard->colorPlaneEnable();

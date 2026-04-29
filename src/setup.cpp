@@ -27,7 +27,7 @@
 
 static char *trim(char *s)
 {
-  while (*s == ' ' || *s == '\t')
+  while ((*s == ' ') || (*s == '\t'))
     s++;
 
   if (*s == 0)
@@ -35,10 +35,10 @@ static char *trim(char *s)
 
   char *end = s + strlen(s) - 1;
   while (end > s &&
-        (*end == ' ' || *end == '\t' ||
-         *end == '\r' || *end == '\n'))
+        ((*end == ' ')  || (*end == '\t') ||
+         (*end == '\r') || (*end == '\n'))) {
     *end-- = 0;
-
+  }
   return s;
 }
 

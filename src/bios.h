@@ -33,6 +33,8 @@
 #include "core/mc146818.h"
 #include "core/i8255_ppi.h"
 
+#include <stdint.h>
+
 // XT (IBM 5150/5160)
 // AT (IBM 5170)
 

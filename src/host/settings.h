@@ -23,6 +23,8 @@
 
 #include "computer.h"
 
+#include <stdint.h>
+
 class OSD;
 
 class Settings {
@@ -32,6 +34,9 @@ public:
   explicit Settings(Computer *computer);
 
   void show();
+
+  void mountFloppy();
+  void mountHardDisk();
 
 private:
 

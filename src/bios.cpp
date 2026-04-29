@@ -32,6 +32,7 @@
 #include "computer.h"
 #include "core/i8086.h"
 
+#include <stdio.h>
 #include <string.h>
 
 using fabgl::i8086;

@@ -33,14 +33,13 @@
 #include "host/sdcard.h"
 #include "host/settings.h"
 
-//#include <memory>
-//#include <esp32-hal-psram.h>
 #include "esp_idf_version.h"
 #include "esp_chip_info.h"
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 0, 0)
 #include "esp_efuse.h"
 #endif
 #include "esp_heap_caps.h"
+#include "esp_system.h"
 #include "esp_task_wdt.h"
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -50,7 +49,6 @@ extern "C" {
 #include "esp32/spiram.h"
 }
 #endif
-//#include <esp_sntp.h>
 
 #include <Arduino.h>
 
@@ -230,9 +228,67 @@ void updateDateTime()
 
 // Sysreq pressed (Alt + Print Screen)
 // Alternatively it works also for Ctrl + Alt + Back
-void sysreq_callback()
+void sysreq_callback(uint8_t reqId)
 {
-  settings->show();
+  switch(reqId) {
+
+    // System configuration and setup
+    case 1:
+      settings->show();
+      break;
+
+    // Mount floppy
+    case 2:
+      settings->mountFloppy();
+      break;
+
+    // Mount hard disk
+    case 3:
+      settings->mountHardDisk();
+      break;
+
+    // Pause / Resume
+    case 4:
+      if (!computer->paused()) {
+        computer->pause();
+      } else {
+        computer->resume();
+      }
+      break;
+
+    // Mute speaker
+    case 5:
+      computer->audio_toggleMute();
+      break;
+
+    // Volume down
+    case 6:
+      computer->audio_volumeDown();
+      break;
+
+    // Volume up
+    case 7:
+      computer->audio_volumeUp();
+      break;
+
+    // Snapshot
+    case 8:
+      computer->video_snapshot();
+      break;
+
+    // Hard reset
+    case 11:
+      esp_restart();
+      break;
+
+    // Soft reboot
+    case 12:
+      computer->reboot();
+      break;
+
+    default:
+      break;
+  }
 }
 
 void setup_computer()

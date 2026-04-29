@@ -37,11 +37,13 @@
 #include "video/hercules.h"
 #include "video/tandy.h"
 
-#include <stdio.h>
+#include "esp_heap_caps.h"
+
 #include <ctype.h>
+#include <math.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
-#include <math.h>
 
 #pragma GCC optimize ("O3")
 
@@ -73,6 +75,7 @@ Computer::Computer() :
   m_stepCallback(nullptr),
   #endif
   m_reset(false),
+  m_paused(false),
   m_diskFilename(),
   m_diskChanged(),
   m_disk(),
@@ -203,7 +206,7 @@ void Computer::init()
   m_i8255.setSW2(/*SW2[1..4]=*/0b1010, /*SW2[5]=*/true);
 #else
   m_i8042.init();
-  m_i8042.setCallbacks(this, keyboardInterrupt, mouseInterrupt, softReboot, hostReq);
+  m_i8042.setCallbacks(this, keyboardInterrupt, mouseInterrupt, triggerReset, hostReq);
 #endif
 
   // Joystick
@@ -547,6 +550,8 @@ void Computer::runTask(void *pvParameters)
 
     if (m->m_reset) {
       m->reset();
+    } else if (m->m_paused) {
+      vTaskDelay(1);
     } else {
 
 #ifdef FABGL_EMULATED
@@ -558,7 +563,7 @@ void Computer::runTask(void *pvParameters)
       i8086::step();
       m->tick();
     }
-	}
+  }
 }
 
 void Computer::PIT_IRQ0(void *context, int timer, bool out)
@@ -574,7 +579,7 @@ void Computer::PIT_IRQ0(void *context, int timer, bool out)
 
 void Computer::tick()
 {
-  ++m_ticksCounter;
+  m_ticksCounter++;
 
   if ((m_ticksCounter & 0x03) == 0x03) {
   
@@ -1036,88 +1041,6 @@ uint8_t Computer::readPort(void *context, int address)
   return 0xFF;
 }
 
-// Reset from 8042 (Ctrl + Alt + Del)
-bool Computer::softReboot(void *context)
-{
-  auto m = (Computer *) context;
-  m->trigReset();
-  return true;
-}
-
-// SysReq (Alt + Print Screen)
-void Computer::hostReq(void *context, uint8_t reqId)
-{
-  auto m = (Computer *) context;
-  switch(reqId) {
-    case 1:
-      if (m->m_sysReqCallback)
-        m->m_sysReqCallback();
-      break;
-
-    case 2: // Volume down
-    {
-      uint8_t vol = m->m_soundGen.volume();
-      if (vol > 5) {
-        vol -= 5;
-      } else {
-        vol = 0;
-      }
-      m->m_soundGen.setVolume(vol);
-      m->m_video.showVolume(vol);
-      printf("computer: Set volume = %d\n", vol);
-      break;
-    }
-
-    case 3: // Volume up
-    {
-      uint8_t vol = m->m_soundGen.volume();
-      vol += 5;
-      if (vol > 127) {
-        vol = 127;
-      }
-      m->m_soundGen.setVolume(vol);
-      m->m_video.showVolume(vol);
-      printf("computer: Set volume = %d\n", vol);
-      break;
-    }
-  }
-}
-
-// 8259A-IR1 (IRQ1, INT 09h)
-bool Computer::keyboardInterrupt(void *context)
-{
-  auto m = (Computer *) context;
-  return m->m_PIC_master.signalInterrupt(1);
-}
-
-// 8259B-IR4 (IRQ12, INT 074h)
-bool Computer::mouseInterrupt(void *context)
-{
-  auto m = (Computer *) context;
-  return m->m_PIC_slave.signalInterrupt(4);
-}
-
-// interrupt from MC146818, trig 8259B-IR0 (IRQ8, INT 70h)
-bool Computer::MC146818Interrupt(void *context)
-{
-  auto m = (Computer *) context;
-  return m->m_PIC_slave.signalInterrupt(0);
-}
-
-// interrupt from COM1, trig 8259A-IR4 (IRQ4, INT 0Ch)
-bool Computer::COM1Interrupt(i8250 *source, void *context)
-{
-  auto m = (Computer *) context;
-  return source->getOut2() && m->m_PIC_master.signalInterrupt(4);
-}
-
-// interrupt from COM2, trig 8259A-IR3 (IRQ3, INT 0Bh)
-bool Computer::COM2Interrupt(i8250 *source, void *context)
-{
-  auto m = (Computer *) context;
-  return source->getOut2() && m->m_PIC_master.signalInterrupt(3);
-}
-
 void Computer::writeVideoMemory8(void *context, int address, uint8_t value)
 {
   auto m = (Computer *) context;
@@ -1160,6 +1083,10 @@ bool Computer::interrupt(void *context, int num)
     case 0x1c: // User Timer
       return false;
 
+    // Keyboard Hardware Interrupt (IRQ1)
+    case 0x09:
+      return false;
+
     // BIOS Video
     case 0x10:
       m->m_video.adapter()->handleInt10h();
@@ -1192,7 +1119,6 @@ bool Computer::interrupt(void *context, int num)
       return true;
 
     // BIOS Keyboard Services
-    case 0x09: // Keyboard Hardware Interrupt (IRQ1)
     case 0x16:
       //m->m_BIOS.handleInt16h();
       return false;
@@ -1227,11 +1153,105 @@ bool Computer::interrupt(void *context, int num)
     case 0x60 ... 0x66:
       return false;
 
+    default:
+      printf("computer: Unhandled interrupt 0x%02x\n", num);
+      return false;
   }
+}
 
-  printf("computer: Unhandled interrupt 0x%02x\n", num);
-  // not handled
-  return false;
+// interrupt from MC146818, trig 8259B-IR0 (IRQ8, INT 70h)
+bool Computer::MC146818Interrupt(void *context)
+{
+  auto m = (Computer *) context;
+  return m->m_PIC_slave.signalInterrupt(0);
+}
+
+// interrupt from COM1, trig 8259A-IR4 (IRQ4, INT 0Ch)
+bool Computer::COM1Interrupt(i8250 *source, void *context)
+{
+  auto m = (Computer *) context;
+  return source->getOut2() && m->m_PIC_master.signalInterrupt(4);
+}
+
+// interrupt from COM2, trig 8259A-IR3 (IRQ3, INT 0Bh)
+bool Computer::COM2Interrupt(i8250 *source, void *context)
+{
+  auto m = (Computer *) context;
+  return source->getOut2() && m->m_PIC_master.signalInterrupt(3);
+}
+
+// 8259A-IR1 (IRQ1, INT 09h)
+bool Computer::keyboardInterrupt(void *context)
+{
+  auto m = (Computer *) context;
+  return m->m_PIC_master.signalInterrupt(1);
+}
+
+// 8259B-IR4 (IRQ12, INT 074h)
+bool Computer::mouseInterrupt(void *context)
+{
+  auto m = (Computer *) context;
+  return m->m_PIC_slave.signalInterrupt(4);
+}
+
+// Reset from 8042 (Ctrl + Alt + Del)
+bool Computer::triggerReset(void *context)
+{
+  auto m = (Computer *) context;
+  m->m_reset = true;
+  return true;
+}
+
+// SysReq (Alt + Print Screen)
+void Computer::hostReq(void *context, uint8_t reqId)
+{
+  auto m = (Computer *) context;
+  if (m->m_sysReqCallback)
+    m->m_sysReqCallback(reqId);
+}
+
+void Computer::audio_toggleMute()
+{
+  if (m_soundGen.playing()) {
+    m_soundGen.play(false);
+    m_video.showVolume(0);
+    printf("computer: Speaker muted\n");
+  } else {
+    const uint8_t vol = m_soundGen.volume();
+    m_soundGen.play(true);
+    m_video.showVolume(vol);
+    printf("computer: Set volume = %d\n", vol);
+  }
+}
+
+void Computer::audio_volumeUp()
+{
+  uint8_t vol = m_soundGen.volume();
+  vol += 5;
+  if (vol > 127) {
+    vol = 127;
+  }
+  m_soundGen.setVolume(vol);
+  m_video.showVolume(vol);
+  printf("computer: Set volume = %d\n", vol);
+}
+
+void Computer::audio_volumeDown()
+{
+  uint8_t vol = m_soundGen.volume();
+  if (vol > 5) {
+    vol -= 5;
+  } else {
+    vol = 0;
+  }
+  m_soundGen.setVolume(vol);
+  m_video.showVolume(vol);
+  printf("computer: Set volume = %d\n", vol);
+}
+
+void Computer::video_snapshot()
+{
+
 }
 
 void Computer::printEquipmentWord()

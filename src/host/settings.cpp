@@ -29,6 +29,8 @@
 
 #include "setup.h"
 
+#include "esp_system.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -47,7 +49,7 @@ void Settings::show()
 
   printf("osd: init...\n");
 
-  auto ctx = m_computer->videoSuspend(CGA_MODE_TEXT_80x25_16COLORS);
+  auto ctx = m_computer->video_suspend(CGA_MODE_TEXT_80x25_16COLORS);
 
   init(ctx->vram());
 
@@ -71,7 +73,7 @@ void Settings::show()
       break;
 
     case 1:
-      m_computer->trigReset();
+      m_computer->reboot();
       break;
 
     case 2:
@@ -157,9 +159,99 @@ void Settings::show()
   }
 
   shutdown();
-  m_computer->videoResume();
+  m_computer->video_resume();
 
   printf("osd: finished\n");
+}
+
+void Settings::mountFloppy()
+{
+  static char dir[MAX_FILEPATH_LEN];
+  static char filename[MAX_FILEPATH_LEN];
+
+  printf("osd: Mount floppy... in\n");
+  auto ctx = m_computer->video_suspend(CGA_MODE_TEXT_80x25_16COLORS);
+
+  init(ctx->vram());
+
+  m_osd->frame(0, 0, 80, 25, Lang::get(Lang::Msg::MenuTitle),
+               true, COL_WHITE, COL_BLUE, false, false);
+
+  m_osd->frame(22, 8, 35, 10, Lang::get(Lang::Msg::MenuSystemTitle),
+                false, COL_WHITE, COL_LIGHTGRAY, true, true);
+
+  m_osd->frame(24, 10, 16, 4, "Floppy",
+                false, COL_YELLOW, COL_LIGHTGRAY, true, false);
+
+  m_osd->text(26, 11, "3.5\" HD\n1440 KB",
+              COL_WHITE, COL_LIGHTGRAY);
+
+  m_osd->frame(40, 10, 16, 4, "Hard disk",
+                false, COL_YELLOW, COL_LIGHTGRAY, true, false);
+
+  m_osd->text(42, 11, "8 MB HDD", COL_WHITE, COL_LIGHTGRAY);
+
+  int index = m_osd->menuBar(25, 15, 0, Lang::get(Lang::Msg::MenuDriveOptions), COL_LIGHTGRAY);
+  if (index != -1) {
+
+    m_osd->frame(4, 4, 72, 18, Lang::get(Lang::Msg::MenuDiskImage),
+                  false, COL_WHITE, COL_LIGHTGRAY, true, true);
+
+    sprintf(dir, "%s/%s", SD_MOUNT_PATH, cfg.disks_path);
+    int res = m_osd->fileBrowser(5, 6, 70, 15, dir, filename);
+    if (res != -1) {
+      mount_disk_image(index, filename);
+    }
+  }
+
+  shutdown();
+  m_computer->video_resume();
+  printf("osd: Mount floppy... out\n");
+}
+
+void Settings::mountHardDisk()
+{
+  static char dir[MAX_FILEPATH_LEN];
+  static char filename[MAX_FILEPATH_LEN];
+
+  printf("osd: Mount floppy... in\n");
+  auto ctx = m_computer->video_suspend(CGA_MODE_TEXT_80x25_16COLORS);
+
+  init(ctx->vram());
+
+  m_osd->frame(0, 0, 80, 25, Lang::get(Lang::Msg::MenuTitle),
+               true, COL_WHITE, COL_BLUE, false, false);
+
+  m_osd->frame(22, 8, 35, 10, Lang::get(Lang::Msg::MenuSystemTitle),
+                false, COL_WHITE, COL_LIGHTGRAY, true, true);
+
+  m_osd->frame(24, 10, 16, 4, "Floppy",
+                false, COL_YELLOW, COL_LIGHTGRAY, true, false);
+
+  m_osd->text(26, 11, "3.5\" HD\n1440 KB",
+              COL_WHITE, COL_LIGHTGRAY);
+
+  m_osd->frame(40, 10, 16, 4, "Hard disk",
+                false, COL_YELLOW, COL_LIGHTGRAY, true, false);
+
+  m_osd->text(42, 11, "8 MB HDD", COL_WHITE, COL_LIGHTGRAY);
+
+  int index = m_osd->menuBar(25, 15, 0, Lang::get(Lang::Msg::MenuDriveOptions), COL_LIGHTGRAY);
+  if (index != -1) {
+
+    m_osd->frame(4, 4, 72, 18, Lang::get(Lang::Msg::MenuDiskImage),
+                  false, COL_WHITE, COL_LIGHTGRAY, true, true);
+
+    sprintf(dir, "%s/%s", SD_MOUNT_PATH, cfg.disks_path);
+    int res = m_osd->fileBrowser(5, 6, 70, 15, dir, filename);
+    if (res != -1) {
+      mount_disk_image(index, filename);
+    }
+  }
+
+  shutdown();
+  m_computer->video_resume();
+  printf("osd: Mount floppy... out\n");
 }
 
 void Settings::init(uint8_t *vram)
@@ -218,10 +310,12 @@ void Settings::mount_disk_image(const int index, char *filename)
     sprintf(filepath, "tmpfs%d.img", index);
 
     if (floppy) {
+      // After mounting a floppy image, the OSD closes and returns to the emulation
       m_computer->setDriveImage(index, filepath);
     } else {
+      // Mounting a hard disk image will automatically trigger a system reboot to apply the changes
       m_computer->setDriveImage(index, filepath, 0, 0, 0);
-      m_computer->trigReset();
+      m_computer->reboot();
     }
   }
 }

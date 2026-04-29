@@ -57,6 +57,8 @@
 
 #include "bios.h"
 
+#include <stdint.h>
+
 #define RAM_SIZE             1048576    // must correspond to bios MEMSIZE
 
 // maximum number of serial ports
@@ -88,7 +90,7 @@ using video::ScanoutContext;
 typedef void (*StepCallback)(void *);
 #endif
   
-typedef void (*SysReqCallback)();
+typedef void (*SysReqCallback)(uint8_t reqId);
 
 class Computer {
 
@@ -113,7 +115,11 @@ public:
 
   void run();
 
-  void trigReset()                     { m_reset = true; }
+  void pause()                         { m_paused = true;  }
+  void resume()                        { m_paused = false; }
+  bool paused() const                  { return m_paused; }
+
+  void reboot()                        { m_reset = true; }
 
   uint32_t ticksCounter()              { return m_ticksCounter; }
 
@@ -141,8 +147,15 @@ public:
   void setStepCallback(StepCallback value)  { m_stepCallback = value; }
   #endif
 
-  ScanoutContext *videoSuspend(int mode) { return m_video.suspend(mode); }
-  void videoResume() { m_video.resume(); }
+  // Audio controls
+  void audio_toggleMute();
+  void audio_volumeUp();
+  void audio_volumeDown();
+
+  // Video controls
+  ScanoutContext *video_suspend(int mode) { return m_video.suspend(mode); }
+  void video_resume() { m_video.resume(); }
+  void video_snapshot();
 
 private:
 
@@ -172,7 +185,8 @@ private:
 
   static bool keyboardInterrupt(void *context);
   static bool mouseInterrupt(void *context);
-  static bool softReboot(void *context);
+
+  static bool triggerReset(void *context);
   static void hostReq(void *context, uint8_t reqId);
 
   void autoDetectDriveGeometry(int drive);
@@ -183,7 +197,8 @@ private:
   StepCallback            m_stepCallback;
   #endif
 
-  bool                    m_reset;
+  volatile bool           m_reset;
+  volatile bool           m_paused;
 
   BIOS                    m_BIOS;
 
