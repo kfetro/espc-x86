@@ -115,7 +115,7 @@ public:
 
   void run();
 
-  void pause()                         { m_paused = true;  }
+  void pause()                         { m_paused = true; }
   void resume()                        { m_paused = false; }
   bool paused() const                  { return m_paused; }
 

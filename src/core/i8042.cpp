@@ -229,6 +229,38 @@ void i8042::tick()
     --m_mouseIntTrigs;
 }
 
+void i8042::tickHostOnly()
+{
+  // Process all available scancodes regardless of STATUS_OBF 
+  // to avoid blocking the keyboard queue while the CPU is halted.
+  while (m_keyboard->scancodeAvailable()) {
+    
+    int scode2 = m_keyboard->getNextScancode();
+    
+    checkHostReq(scode2);
+    
+    // Update m_DBBOUT to maintain state for the next checkHostReq call
+    if (m_commandByte & CMDBYTE_STD_SCAN_CONVERSION) {
+      uint8_t scode1 = Keyboard::convScancodeSet2To1(scode2);
+      // Logic to handle Set 2 to Set 1 translation (handling the 0xF0 prefix)
+      m_DBBOUT = (m_DBBOUT == 0xf0 ? (0x80 | scode1) : scode1);
+    } else {
+      m_DBBOUT = scode2;
+    }
+
+    // We do NOT update STATUS_OBF or trigger IRQs here because 
+    // the CPU is stopped and won't service the interrupt.
+  }
+
+#if 0
+  // Optional: Process pending controller commands (e.g., from debugger/UI)
+  if (m_STATUS & STATUS_CMD) {
+    m_STATUS &= ~(STATUS_IBF | STATUS_CMD);
+    execCommand();
+  }
+#endif
+}
+
 void i8042::execCommand()
 {
   uint8_t cmd = m_executingCommand == CTRLCMD_NONE ? m_DBBIN : m_executingCommand;

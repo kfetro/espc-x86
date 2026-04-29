@@ -69,6 +69,7 @@ public:
   }
 
   void tick();
+  void tickHostOnly();
 
   uint8_t read(int address);
   void write(int address, uint8_t value);

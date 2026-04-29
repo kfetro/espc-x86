@@ -551,6 +551,11 @@ void Computer::runTask(void *pvParameters)
     if (m->m_reset) {
       m->reset();
     } else if (m->m_paused) {
+#if LEGACY_IBMPC_XT_8088
+      //TODO m->m_i8255.tick();
+#else
+      m->m_i8042.tickHostOnly();
+#endif
       vTaskDelay(1);
     } else {
 
@@ -600,9 +605,9 @@ void Computer::tick()
     
   }
 
-  if (m_PIC_master.pendingInterrupt() && i8086::IRQ(m_PIC_master.pendingInterruptNum())) {
+  if (m_PIC_master.pendingInterrupt() && i8086::IRQ(m_PIC_master.pendingInterruptNum()))
     m_PIC_master.ackPendingInterrupt();
-  }
+
   if (m_PIC_slave.pendingInterrupt() && i8086::IRQ(m_PIC_slave.pendingInterruptNum()))
     m_PIC_slave.ackPendingInterrupt();
 }

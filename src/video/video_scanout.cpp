@@ -54,7 +54,6 @@ static uint32_t* DRAM_ATTR m_egaLUT_L[4]; // Pixels 4, 5, 6, 7
 
 VideoScanout::VideoScanout() :
   m_VGADCtrl(nullptr),
-  m_videoRunning(false),
   m_frameCounter(0),
   m_rawPixelLUT(nullptr),
   m_cursorGlyph(nullptr),
@@ -245,18 +244,27 @@ void VideoScanout::run()
       m_VGADCtrl->getViewPortHeight());
   }
   m_VGADCtrl->run();
-  m_videoRunning = true;
+  m_state = State::Running;
+}
+
+void VideoScanout::pause(bool enable)
+{
+  if (enable && (m_state == State::Running)) {
+    m_state = State::Paused;
+  } else if (!enable && (m_state == State::Paused)) {
+    m_state = State::Running;
+  }
 }
 
 void VideoScanout::stop()
 {
   m_VGADCtrl->end();
-  m_videoRunning = false;
+  m_state = State::Stopped;
 }
 
 void VideoScanout::reallocLUT()
 {
-  if (m_videoRunning) {
+  if (m_state == State::Running) {
     printf("video: WARNING! Realloc LUT while running\n");
   }
 
@@ -620,7 +628,7 @@ void IRAM_ATTR VideoScanout::drawScanline_text_40x25(void *ctx, uint8_t *dst, in
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
 
     auto vcard = (ScanoutContext *) device->m_context;
@@ -746,7 +754,7 @@ void IRAM_ATTR VideoScanout::drawScanline_text_80x25(void *ctx, uint8_t *dst, in
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
 
     auto vcard = (ScanoutContext *) device->m_context;
@@ -1041,7 +1049,7 @@ void IRAM_ATTR VideoScanout::drawScanline_mda_80x25(void *ctx, uint8_t *dst, int
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
 
     auto vcard = (ScanoutContext *) device->m_context;
@@ -1162,7 +1170,7 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_320x200x4(void *ctx, uint8_t *dst,
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
   }
 
@@ -1186,7 +1194,7 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_640x200x2(void *ctx, uint8_t *dst,
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
   }
 
@@ -1210,7 +1218,7 @@ void IRAM_ATTR VideoScanout::drawScanline_tandy_320x200x16(void *ctx, uint8_t *d
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
   }
 
@@ -1261,7 +1269,7 @@ void IRAM_ATTR VideoScanout::drawScanline_tandy_640x200x4(void *ctx, uint8_t *ds
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
   }
 
@@ -1285,7 +1293,7 @@ void IRAM_ATTR VideoScanout::drawScanline_ega_320x200x16(void *ctx, uint8_t *dst
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
 
     auto vcard = (ScanoutContext *) device->m_context;
@@ -1395,7 +1403,7 @@ void IRAM_ATTR VideoScanout::drawScanline_ega_640x200x16(void *ctx, uint8_t *dst
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
 
     auto vcard = (ScanoutContext *) device->m_context;
@@ -1464,7 +1472,7 @@ void IRAM_ATTR VideoScanout::drawScanline_mda_720x348x2(void *ctx, uint8_t *dst,
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
   }
 
@@ -1497,7 +1505,7 @@ void IRAM_ATTR VideoScanout::drawScanline_ega_640x350x16(void *ctx, uint8_t *dst
 
   auto device = (VideoScanout *) ctx;
 
-  if (scanLine == 0) {
+  if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
 
     auto vcard = (ScanoutContext *) device->m_context;

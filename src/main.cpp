@@ -251,8 +251,10 @@ void sysreq_callback(uint8_t reqId)
     case 4:
       if (!computer->paused()) {
         computer->pause();
+        printf("computer: System paused\n");
       } else {
         computer->resume();
+        printf("computer: System resumed\n");
       }
       break;
 

@@ -75,6 +75,9 @@ public:
   void run();
   void stop();
 
+  // true = pause, false = resume
+  void pause(bool enable);
+
   void updateLUT();
   void setBorder(uint8_t color);
 
@@ -85,9 +88,16 @@ private:
 
   VGADirectController *m_VGADCtrl;
 
-  // This flag allows the user to disable the video,
-  // he can then use the display to modify the emulator
-  bool m_videoRunning;
+  // This flags allow the user to disable the video,
+  // and then use the display to modify the emulator,
+  // take a snapshot, etc.
+  enum class State {
+    Stopped,
+    Running,
+    Paused
+  };
+
+  volatile State m_state = State::Stopped;
 
   uint8_t m_currentMode;
 
