@@ -57,6 +57,10 @@ using fabgl::FontInfo;
 namespace video {
 
 class ScanoutContext;
+class VideoScanout;
+
+void drawOSDVolume(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
+void drawOSDPause(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
 
 // Video Digital-to-Analog Converter (DAC)
 class VideoScanout {
@@ -162,6 +166,9 @@ private:
   static void drawScanline_ega_640x200x16(void *ctx, uint8_t *dst, int scanLine);
   static void drawScanline_mda_720x348x2(void *ctx, uint8_t *dst, int scanLine);
   static void drawScanline_ega_640x350x16(void *ctx, uint8_t *dst, int scanLine);
+
+  friend void drawOSDVolume(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
+  friend void drawOSDPause(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
 };
 
 } // end of namespace

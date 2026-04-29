@@ -115,8 +115,8 @@ public:
 
   void run();
 
-  void pause()                         { m_paused = true; }
-  void resume()                        { m_paused = false; }
+  void pause()                         { m_paused = true; m_video.pause(true); }
+  void resume()                        { m_paused = false; m_video.pause(false); }
   bool paused() const                  { return m_paused; }
 
   void reboot()                        { m_reset = true; }

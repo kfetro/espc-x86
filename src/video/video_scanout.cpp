@@ -251,8 +251,10 @@ void VideoScanout::pause(bool enable)
 {
   if (enable && (m_state == State::Running)) {
     m_state = State::Paused;
+printf("video: pause\n");
   } else if (!enable && (m_state == State::Paused)) {
     m_state = State::Running;
+printf("video: run\n");
   }
 }
 
@@ -372,6 +374,10 @@ void VideoScanout::releaseLUT()
 void VideoScanout::updateLUT()
 {
   m_rawBorderColor = m_VGADCtrl->createRawPixel(RGB222(0, 0, 0));
+
+  m_OSD_rawPixelBg  = m_VGADCtrl->createRawPixel(RGB222(0, 0, 0));
+  m_OSD_rawPixelFgH = m_VGADCtrl->createRawPixel(RGB222(3, 3, 1));
+  m_OSD_rawPixelFgL = m_VGADCtrl->createRawPixel(RGB222(2, 2, 2));
 
   switch (m_currentMode) {
 
@@ -604,13 +610,8 @@ void VideoScanout::setBorder(uint8_t color)
   printf("set border color = %d %d\n", color, m_rawBorderColor);
 }
 
-
 void VideoScanout::showVolume(uint8_t volume)
 {
-  m_OSD_rawPixelBg  = m_VGADCtrl->createRawPixel(RGB222(0, 0, 0));
-  m_OSD_rawPixelFgH = m_VGADCtrl->createRawPixel(RGB222(3, 3, 1));
-  m_OSD_rawPixelFgL = m_VGADCtrl->createRawPixel(RGB222(2, 2, 2));
-
   m_OSD_volumeLevel = volume;
   m_OSD_frame = m_frameCounter;
   m_OSD_showVolume = true;
@@ -872,169 +873,17 @@ void IRAM_ATTR VideoScanout::drawScanline_text_80x25(void *ctx, uint8_t *dst, in
     dst += 8;
   }
 
-#if 0
-  // Draw volume OSD overlay (top-right corner)
-if (device->m_showVolumeOSD) {
-
-  // Hide after ~150 frames (~2.5 seconds at 60 Hz)
-  if ((device->m_frameCounter - device->m_volumeOSDFrame) > 150) {
-    device->m_showVolumeOSD = false;
-  } else if (textRow == 0) {
-
-    // OSD geometry
-    constexpr int osdCols = 12;
-    constexpr int osdStartCol = 80 - osdCols;
-    constexpr int barCount = 8;
-
-    // Compute active bars from volume (0..127)
-    int activeBars = (device->m_volumeLevel * barCount) / 127;
-
-    // Raw colors
-    uint8_t rawBlack  = device->m_rawBorderColor;
-
-    // Only draw on character scanlines that belong to the glyph body
-    if (charScanline >= 2 && charScanline <= 5) {
-
-      for (int col = 0; col < osdCols; col++) {
-
-        int xPixel = (osdStartCol + col) * charWidth;
-        uint8_t *p = dst + xPixel * scanLines;
-
-        // Speaker icon (simple trapezoid)
-        if (col == 0 || col == 1) {
-          for (int i = 0; i < charWidth * scanLines; i++)
-            p[i] = device->m_rawYellow;
-          continue;
-        }
-
-        // Bars
-        int barIndex = col - 3;
-        if (barIndex >= 0 && barIndex < barCount) {
-          uint8_t color = (barIndex < activeBars) ? device->m_rawYellow : device->m_rawGray;
-          for (int i = 0; i < charWidth * scanLines; i++)
-            p[i] = color;
-        }
-      }
+  if (device->m_OSD_showVolume) {
+    // Hide after ~150 frames (~2.5 seconds @ 60Hz)
+    if ((device->m_frameCounter - device->m_OSD_frame) > 150) {
+      device->m_OSD_showVolume = false;
+    } else {
+      drawOSDVolume(device, pixelsLine, scanLines, charScanline, textRow, dst);
     }
+  } else if (device->m_state == State::Paused) {
+    // Show only when emulator is paused (you must set this flag from Computer/VideoSystem)
+    drawOSDPause(device, pixelsLine, scanLines, charScanline, textRow, dst);
   }
-}
-#else
-
-  // OSD disabled?
-  if (!device->m_OSD_showVolume)
-    return;
-
-  // Hide after ~150 frames (~2.5 seconds @ 60Hz)
-  if ((device->m_frameCounter - device->m_OSD_frame) > 150) {
-    device->m_OSD_showVolume = false;
-    return;
-  }
-
-  // Only affect first 2 text rows: row 0 = label, row 1 = meter
-  if (textRow > 1)
-    return;
-
-  // Glyph is 8 px high; this callback draws `scanLines` (=4) physical scanlines.
-  // We only draw while we are inside the glyph height.
-  if (charScanline >= 8)
-    return;
-
-  // IMPORTANT:
-  // The main renderer advanced `dst` by (textCols * charWidth) = (80 * 8) = 640 bytes,
-  // which equals pixelsLine. Recover the base pointer for this scanline block.
-  uint8_t *dstBase = dst - pixelsLine;
-
-  constexpr int lineWidth       = 4; // stripe thickness in pixels
-  constexpr int totalColorLines = 16;
-  constexpr int totalLines = 2 * totalColorLines - 1;
-
-  // Right margin = 2 characters = 16 pixels
-  constexpr int rightMarginPx   = 16;
-
-  // Label: "VOLUME"
-  constexpr int textLen         = 6;
-  constexpr int textWidthPx     = textLen * charWidth;   // 6 * 8 = 48
-
-  // Meter width in pixels
-  constexpr int meterWidthPx    = totalLines * lineWidth;
-
-  // Align both rows to the same right-aligned block
-  constexpr int blockWidthPx    = (textWidthPx > meterWidthPx) ? textWidthPx : meterWidthPx;
-
-  // Block start X (right-aligned with margin)
-  const int osdStartX = pixelsLine - rightMarginPx - blockWidthPx;
-
-  const uint8_t bg  = device->m_OSD_rawPixelBg;  // background (black)
-  const uint8_t fgH = device->m_OSD_rawPixelFgH; // bright foreground (yellow)
-  const uint8_t fgL = device->m_OSD_rawPixelFgL; // light foreground (light gray)
-
-  if (textRow == 0) { // Row 0: Draw "VOLUME"
-
-    // Bit-to-pixel mapping used by your main renderer
-    constexpr uint8_t bitMask[8] = { 0x20, 0x10, 0x80, 0x40, 0x02, 0x01, 0x08, 0x04 };
-
-    const uint8_t text[textLen] = {
-      (uint8_t) 'V', (uint8_t) 'O', (uint8_t) 'L', (uint8_t) 'U', (uint8_t) 'M', (uint8_t) 'E'
-    };
-
-    // Precompute glyph base pointers (no STL)
-    const uint8_t *glyph[textLen];
-    for (int c = 0; c < textLen; c++)
-      glyph[c] = device->m_font.data + (int) text[c] * charSize;
-
-    // Draw the `scanLines` physical scanlines of this callback
-    for (int sl = 0; sl < scanLines; sl++) {
-      const int glyphRow = charScanline + sl;  // 0..7
-      uint8_t *line = dstBase + sl * pixelsLine;
-
-      // Draw each character (8 px wide)
-      for (int c = 0; c < textLen; c++) {
-        const uint8_t bits = glyph[c][glyphRow * charBytes];
-        uint8_t *p = line + osdStartX + c * charWidth;
-
-        for (int px = 0; px < 8; px++) {
-          p[px] = (bits & bitMask[px]) ? fgH : bg;
-        }
-      }
-
-      // If meter is wider than text, clear the rest of the block to black
-      if (meterWidthPx > textWidthPx) {
-        uint8_t *p = line + osdStartX + textWidthPx;
-        const int fill = meterWidthPx - textWidthPx;
-        for (int i = 0; i < fill; i++) {
-          p[i] = bg;
-        }
-      }
-    }
-  } else if (textRow == 1) { // --- ROW 1: Draw stripes meter ---
-
-    const int activeLines = (device->m_OSD_volumeLevel * totalColorLines) / 127;
-
-    for (int sl = 0; sl < scanLines; sl++) {
-      uint8_t *line = dstBase + sl * pixelsLine;
-      uint8_t *p = line + osdStartX; // meter starts at the block start
-
-      int lineIndex = 0; // Colored line index
-      for (int i = 0; i < totalLines; i++) {
-        uint8_t color;
-
-        if ((i & 1) == 0) {
-          // Color stripe: yellow for active, gray for remaining
-          color = (lineIndex < activeLines) ? fgH  : fgL;
-          lineIndex++;
-        } else {
-          color = bg; // Black stripe separator
-        }
-
-        for (int w = 0; w < lineWidth; w++) {
-          p[w] = color;
-        }
-        p += lineWidth;
-      }
-    }
-  }
-
-#endif
 }
 
 void IRAM_ATTR VideoScanout::drawScanline_mda_80x25(void *ctx, uint8_t *dst, int scanLine)
@@ -1562,6 +1411,218 @@ void IRAM_ATTR VideoScanout::drawScanline_ega_640x350x16(void *ctx, uint8_t *dst
     *dst++ = LUT[pixel_L[1]];
     *dst++ = LUT[pixel_L[2]];
     *dst++ = LUT[pixel_L[3]];
+  }
+}
+
+inline __attribute__((always_inline))
+void drawOSDVolume(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst)
+{
+  constexpr int charWidth  = 8;
+  constexpr int charHeight = 8;
+  constexpr int charBytes  = (charWidth + 7) / 8;    // Char width in bytes
+  constexpr int charSize   = charBytes * charHeight; // Char size in bytes
+
+  // Only affect first 2 text rows: row 0 = label, row 1 = meter
+  if (textRow > 1)
+    return;
+
+  // Glyph is 8 px high; this callback draws `scanLines` (=4) physical scanlines.
+  // We only draw while we are inside the glyph height.
+  if (charScanline >= 8)
+    return;
+
+  // IMPORTANT:
+  // The main renderer advanced `dst` by (textCols * charWidth) = (80 * 8) = 640 bytes,
+  // which equals pixelsLine. Recover the base pointer for this scanline block.
+  uint8_t *dstBase = dst - pixelsLine;
+
+  constexpr int lineWidth       = 4; // stripe thickness in pixels
+  constexpr int totalColorLines = 16;
+  constexpr int totalLines = 2 * totalColorLines - 1;
+
+  // Right margin = 2 characters = 16 pixels
+  constexpr int rightMarginPx   = 16;
+
+  // Label: "VOLUME"
+  constexpr int textLen         = 6;
+  constexpr int textWidthPx     = textLen * charWidth;   // 6 * 8 = 48
+
+  // Meter width in pixels
+  constexpr int meterWidthPx    = totalLines * lineWidth;
+
+  // Align both rows to the same right-aligned block
+  constexpr int blockWidthPx    = (textWidthPx > meterWidthPx) ? textWidthPx : meterWidthPx;
+
+  // Block start X (right-aligned with margin)
+  const int osdStartX = pixelsLine - rightMarginPx - blockWidthPx;
+
+  const uint8_t bg  = device->m_OSD_rawPixelBg;  // background (black)
+  const uint8_t fgH = device->m_OSD_rawPixelFgH; // bright foreground (yellow)
+  const uint8_t fgL = device->m_OSD_rawPixelFgL; // light foreground (light gray)
+
+  if (textRow == 0) { // Row 0: Draw "VOLUME"
+
+    // Bit-to-pixel mapping used by your main renderer
+    constexpr uint8_t bitMask[8] = { 0x20, 0x10, 0x80, 0x40, 0x02, 0x01, 0x08, 0x04 };
+
+    const uint8_t text[textLen] = {
+      (uint8_t) 'V', (uint8_t) 'O', (uint8_t) 'L', (uint8_t) 'U', (uint8_t) 'M', (uint8_t) 'E'
+    };
+
+    // Precompute glyph base pointers (no STL)
+    const uint8_t *glyph[textLen];
+    for (int c = 0; c < textLen; c++)
+      glyph[c] = device->m_font.data + (int) text[c] * charSize;
+
+    // Draw the `scanLines` physical scanlines of this callback
+    for (int sl = 0; sl < scanLines; sl++) {
+      const int glyphRow = charScanline + sl;  // 0..7
+      uint8_t *line = dstBase + sl * pixelsLine;
+
+      // Draw each character (8 px wide)
+      for (int c = 0; c < textLen; c++) {
+        const uint8_t bits = glyph[c][glyphRow * charBytes];
+        uint8_t *p = line + osdStartX + c * charWidth;
+
+        for (int px = 0; px < 8; px++) {
+          p[px] = (bits & bitMask[px]) ? fgH : bg;
+        }
+      }
+
+      // If meter is wider than text, clear the rest of the block to black
+      if (meterWidthPx > textWidthPx) {
+        uint8_t *p = line + osdStartX + textWidthPx;
+        const int fill = meterWidthPx - textWidthPx;
+        for (int i = 0; i < fill; i++) {
+          p[i] = bg;
+        }
+      }
+    }
+  } else if (textRow == 1) { // --- ROW 1: Draw stripes meter ---
+
+    const int activeLines = (device->m_OSD_volumeLevel * totalColorLines) / 127;
+
+    for (int sl = 0; sl < scanLines; sl++) {
+      uint8_t *line = dstBase + sl * pixelsLine;
+      uint8_t *p = line + osdStartX; // meter starts at the block start
+
+      int lineIndex = 0; // Colored line index
+      for (int i = 0; i < totalLines; i++) {
+        uint8_t color;
+
+        if ((i & 1) == 0) {
+          // Color stripe: yellow for active, gray for remaining
+          color = (lineIndex < activeLines) ? fgH  : fgL;
+          lineIndex++;
+        } else {
+          color = bg; // Black stripe separator
+        }
+
+        for (int w = 0; w < lineWidth; w++) {
+          p[w] = color;
+        }
+        p += lineWidth;
+      }
+    }
+  }
+}
+
+inline __attribute__((always_inline))
+void drawOSDPause(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst)
+{
+  constexpr int charWidth  = 8;
+  constexpr int charHeight = 8;
+  constexpr int charBytes  = (charWidth + 7) / 8;    // Char width in bytes
+  constexpr int charSize   = charBytes * charHeight; // Char size in bytes
+
+  // Only first text row
+  if (textRow != 0)
+    return;
+
+  // Only within glyph height (8px)
+  if (charScanline >= 8)
+    return;
+
+  // Recover base pointer for this scanline block (main loop advanced dst by pixelsLine)
+  uint8_t *dstBase = dst - pixelsLine;
+
+  // Layout constants
+  constexpr int rightMarginPx = 16;     // 2 characters margin
+  constexpr int textLen = 5;            // "PAUSE"
+  constexpr int textWidthPx = textLen * charWidth;  // 5 * 8 = 40
+  constexpr int gapPx = charWidth;      // one character gap (8px)
+  constexpr int iconWidthPx = 16;        // icon box for "||"
+  constexpr int osdWidthPx = textWidthPx + gapPx + iconWidthPx;
+
+  // Right-aligned start position
+  const int osdStartX = pixelsLine - rightMarginPx - osdWidthPx;
+
+  // Safety guard
+  if (osdStartX < 0)
+    return;
+
+  // Colors
+  const uint8_t fg = device->m_OSD_rawPixelFgH; // foreground (use same as volume/yellow)
+  const uint8_t bg = device->m_OSD_rawPixelBg;  // background (black)
+
+  // Bit-to-pixel mapping used by your main text renderer:
+  // p[0]=0x20, p[1]=0x10, p[2]=0x80, p[3]=0x40, p[4]=0x02, p[5]=0x01, p[6]=0x08, p[7]=0x04
+  constexpr uint8_t bitMask[8] = { 0x20, 0x10, 0x80, 0x40, 0x02, 0x01, 0x08, 0x04 };
+
+  // Text to draw
+  const uint8_t text[textLen] = {
+    (uint8_t)'P', (uint8_t)'A', (uint8_t)'U', (uint8_t)'S', (uint8_t)'E'
+  };
+
+  // Precompute glyph pointers
+  const uint8_t *glyph[textLen];
+  for (int c = 0; c < textLen; ++c)
+    glyph[c] = device->m_font.data + (int)text[c] * charSize;
+
+  // Draw the 4 physical scanlines of this callback
+  for (int sl = 0; sl < scanLines; ++sl) {
+
+    const int glyphRow = charScanline + sl;   // 0..7
+    uint8_t *line = dstBase + sl * pixelsLine;
+
+    // Draw "PAUSE"
+    for (int c = 0; c < textLen; ++c) {
+
+      const uint8_t bits = glyph[c][glyphRow * charBytes];
+      uint8_t *p = line + osdStartX + c * charWidth;
+
+      for (int px = 0; px < 8; ++px)
+        p[px] = (bits & bitMask[px]) ? fg : bg;
+    }
+
+    // Draw gap (black)
+    {
+      uint8_t *p = line + osdStartX + textWidthPx;
+      for (int i = 0; i < gapPx; ++i)
+        p[i] = bg;
+    }
+
+    // Draw "||" icon inside an 8px box
+    // Two vertical bars, each 2px wide, with spacing.
+    {
+      uint8_t *p = line + osdStartX + textWidthPx + gapPx;
+
+      // Clear icon box background
+      for (int i = 0; i < iconWidthPx; ++i)
+        p[i] = bg;
+
+      // Left bar: x = 1..2
+      p[0] = fg;
+      p[1] = fg;
+      p[2] = fg;
+      p[3] = fg;
+
+      // Right bar: x = 5..6
+      p[8] = fg;
+      p[9] = fg;
+      p[10] = fg;
+      p[11] = fg;
+    }
   }
 }
 

@@ -74,6 +74,7 @@ public:
   // Returns true if the system is currently suspended (Dummy active)
   bool suspended() const { return m_dummy != nullptr; }
 
+  void pause(bool enable) { m_scanout.pause(enable); }
   void showVolume(uint8_t vol) { m_scanout.showVolume(vol); }
 
 private:
