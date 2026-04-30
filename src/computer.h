@@ -155,7 +155,7 @@ public:
   // Video controls
   ScanoutContext *video_suspend(int mode) { return m_video.suspend(mode); }
   void video_resume() { m_video.resume(); }
-  void video_snapshot();
+  void video_snapshot(const char *path);
 
 private:
 

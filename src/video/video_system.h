@@ -77,6 +77,8 @@ public:
   void pause(bool enable) { m_scanout.pause(enable); }
   void showVolume(uint8_t vol) { m_scanout.showVolume(vol); }
 
+  uint8_t *rawSnapshot(uint16_t *width, uint16_t *height) { return m_scanout.rawSnapshot(width, height); }
+
 private:
 
   // Applies scanout source and mode in a controlled order

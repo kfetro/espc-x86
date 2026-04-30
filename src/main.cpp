@@ -275,7 +275,7 @@ void sysreq_callback(uint8_t reqId)
 
     // Snapshot
     case 8:
-      computer->video_snapshot();
+      computer->video_snapshot(SD_MOUNT_PATH);
       break;
 
     // Hard reset

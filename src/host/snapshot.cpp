@@ -21,7 +21,11 @@
 
 #include "host/snapshot.h"
 
+#include "esp_heap_caps.h"
+#include "esp_timer.h"
+
 #include <stdio.h>
+#include <sys/stat.h>
 
 // Write 16-bit little-endian value
 static void write_u16_le(FILE *fd, uint16_t v)
@@ -50,17 +54,14 @@ static void write_s32_le(FILE *f, int32_t v)
 // Raw pixels coming from the VGA controller include HSYNC/VSYNC bits
 // in bits 6..7. These bits are removed in-place, keeping only RGB222
 // color information in bits 0..5.
-int snapshot(uint16_t width,
-             uint16_t height,
-             uint8_t *src,
-             const char *filename)
+int snapshot(uint16_t width, uint16_t height, uint8_t *src, const char *path)
 {
   // Mask to keep only RGB222 bits (remove HSYNC/VSYNC bits 6..7)
   const uint8_t colorMask = 0x3F;
 
   // Clean raw pixels in-place
-  uint32_t totalPixels = (uint32_t) width * (uint32_t) height;
-  for (uint32_t i = 0; i < totalPixels; i) {
+  uint32_t totalPixels = (uint32_t) width * height;
+  for (uint32_t i = 0; i < totalPixels; i++) {
     src[i] &= colorMask;
   }
 
@@ -72,6 +73,14 @@ int snapshot(uint16_t width,
   uint32_t infoHeaderSize = 40;
   uint32_t pixelDataOffset = fileHeaderSize + infoHeaderSize + paletteSize;
   uint32_t fileSize = pixelDataOffset + imageSize;
+
+  char filename[64];
+  struct stat st;
+  int i = 0;
+
+  do {
+    snprintf(filename, sizeof(filename), "%s/%s%d.%s", path, SNAPSHOT_FILENAME_PREFIX, i++, SNAPSHOT_FILENAME_EXT);
+  } while (stat(filename, &st) == 0);
 
   FILE *fd = fopen(filename, "wb");
   if (!fd) {
@@ -124,22 +133,110 @@ int snapshot(uint16_t width,
     fputc(0,  fd);
   }
 
-  // Pixel data
-  // Write each row directly from src, add padding bytes if required
   uint32_t pad = rowStride - (uint32_t) width;
   const uint8_t padByte = 0;
 
-  const uint8_t *s = src;
+  const int64_t t0 = esp_timer_get_time();
+
+#if 0
+  // Note that src is NOT linear since VGADirectController stores
+  // pixels with byte swizzle: pixel X is stored at row[X ^ 2]
   for (uint16_t y = 0; y < height; y++) {
 
-    fwrite(s, 1, width, fd);
+    const uint8_t *srcRow = src + (uint32_t) y * width;
 
+    // Fast path for widths multiple of 4 (320/640/etc.)
+    for (uint16_t x = 0; x + 3 < width; x += 4) {
+
+      // Process 4 pixels at a time: physical bytes [0,1,2,3] correspond to pixels [2,3,0,1]
+      uint8_t buf4[4];
+
+      // Read 4 physical bytes
+      uint8_t b0 = srcRow[x + 0];
+      uint8_t b1 = srcRow[x + 1];
+      uint8_t b2 = srcRow[x + 2];
+      uint8_t b3 = srcRow[x + 3];
+
+      // Unswizzle to linear pixel order and mask sync bits
+      buf4[0] = b2 & colorMask;  // pixel x+0
+      buf4[1] = b3 & colorMask;  // pixel x+1
+      buf4[2] = b0 & colorMask;  // pixel x+2
+      buf4[3] = b1 & colorMask;  // pixel x+3
+
+      fwrite(buf4, 1, 4, fd);
+    }
+
+    // Row padding (BMP)
     for (uint32_t p = 0; p < pad; p++) {
       fputc(padByte, fd);
-	}
-    s += width;
+    }
+  }
+#else
+  // 4KB output buffer in PSRAM (minimize DRAM usage)
+  uint8_t *outBuf = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!outBuf) {
+    fclose(fd);
+    printf("snapshot: Unable to allocate 4KB output buffer\n");
+    return -1;
   }
 
+  size_t outPos = 0;
+
+  // Note that src is NOT linear since VGADirectController stores
+  // pixels with byte swizzle: pixel X is stored at row[X ^ 2].
+  for (uint16_t y = 0; y < height; y++) {
+
+    const uint8_t *srcRow = src + (uint32_t) y * width;
+
+    for (uint16_t x = 0; x + 3 < width; x += 4) {
+
+      // Read 4 physical bytes from the swizzled row
+      uint8_t b0 = srcRow[x + 0];
+      uint8_t b1 = srcRow[x + 1];
+      uint8_t b2 = srcRow[x + 2];
+      uint8_t b3 = srcRow[x + 3];
+
+      // Unswizzle to linear pixel order:
+      // pixels [x+0..x+3] = bytes [2,3,0,1] and mask sync bits. [1](https://upm365-my.sharepoint.com/personal/jesus_martinez_mateo_upm_es/Documents/Archivos%20de%20Microsoft%C2%A0Copilot%20Chat/snapshot.cpp)
+      uint8_t p0 = b2 & colorMask;
+      uint8_t p1 = b3 & colorMask;
+      uint8_t p2 = b0 & colorMask;
+      uint8_t p3 = b1 & colorMask;
+
+      // Flush if buffer would overflow
+      if (outPos + 4 > 4096) {
+        fwrite(outBuf, 1, outPos, fd);
+        outPos = 0;
+      }
+
+      outBuf[outPos++] = p0;
+      outBuf[outPos++] = p1;
+      outBuf[outPos++] = p2;
+      outBuf[outPos++] = p3;
+    }
+
+    // Row padding (BMP alignment)
+    for (uint32_t p = 0; p < pad; ++p) {
+      if (outPos + 1 > 4096) {
+        fwrite(outBuf, 1, outPos, fd);
+        outPos = 0;
+      }
+      outBuf[outPos++] = padByte;
+    }
+  }
+
+  // Final flush
+  if (outPos) {
+    fwrite(outBuf, 1, outPos, fd);
+    outPos = 0;
+  }
+
+  heap_caps_free(outBuf);
+#endif
+
+  const int64_t t1 = esp_timer_get_time();
+
   fclose(fd);
+  printf("snapshot: Image saved to %s (%ux%u) [%lld ms]\n", filename, width, height, (long long) ((t1 - t0) / 1000));
   return 0;
 }

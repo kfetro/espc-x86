@@ -607,7 +607,7 @@ void VideoScanout::removeCursorGlyph()
 void VideoScanout::setBorder(uint8_t color)
 {
   m_rawBorderColor = m_VGADCtrl->createRawPixel(m_context->paletteMap(color, 16));
-  printf("set border color = %d %d\n", color, m_rawBorderColor);
+  printf("video: Set border color = %d\n", color);
 }
 
 void VideoScanout::showVolume(uint8_t volume)
@@ -615,6 +615,29 @@ void VideoScanout::showVolume(uint8_t volume)
   m_OSD_volumeLevel = volume;
   m_OSD_frame = m_frameCounter;
   m_OSD_showVolume = true;
+}
+
+uint8_t *VideoScanout::rawSnapshot(uint16_t *width, uint16_t *height)
+{
+  const size_t bufferSize = (size_t) m_width * m_height;
+
+  // Allocate framebuffer in PSRAM
+  uint8_t *framebuffer = (uint8_t *) heap_caps_malloc(bufferSize, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (!framebuffer) {
+    printf("video: Unable to allocate framebuffer memory (for snapshot)\n");
+    return nullptr;
+  }
+
+  // Render loop: call the SAME drawScanline callback used by VGADirectController
+  for (int scanLine = 0; scanLine < m_height; scanLine += m_scanLines) {
+    uint8_t *dst = framebuffer + scanLine * m_width;
+
+    m_callback(this, dst, scanLine);
+  }
+
+  *width  = m_width;
+  *height = m_height;
+  return framebuffer;
 }
 
 void IRAM_ATTR VideoScanout::drawScanline_text_40x25(void *ctx, uint8_t *dst, int scanLine)
@@ -754,7 +777,10 @@ void IRAM_ATTR VideoScanout::drawScanline_text_80x25(void *ctx, uint8_t *dst, in
   constexpr int scanLines  = 4;
 
   auto device = (VideoScanout *) ctx;
-
+/*
+  if ((device->m_state == State::Paused) && xPortInIsrContext())
+    return;
+*/
   if ((scanLine == 0) && (device->m_state == State::Running)) {
     device->m_frameCounter++;
 

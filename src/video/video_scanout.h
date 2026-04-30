@@ -88,6 +88,8 @@ public:
   // OSD
   void showVolume(uint8_t volume);
 
+  uint8_t *rawSnapshot(uint16_t *width, uint16_t *height);
+
 private:
 
   VGADirectController *m_VGADCtrl;

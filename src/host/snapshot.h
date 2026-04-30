@@ -23,8 +23,8 @@
 
 #include <stdint.h>
 
-// Returns 0 on success, non-zero on error
-int snapshot(uint16_t width,
-             uint16_t height,
-             uint8_t *src,
-             const char *filename);
+#define SNAPSHOT_FILENAME_PREFIX "snaphost"
+#define SNAPSHOT_FILENAME_EXT    "bmp"
+
+int snapshot(uint16_t width, uint16_t height, uint8_t *src, const char *path);
+

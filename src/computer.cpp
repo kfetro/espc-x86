@@ -31,6 +31,8 @@
 #include "setup.h"
 #include "drivers/ipc.h"
 
+#include "host/snapshot.h"
+
 // Video cards
 #include "video/cga.h"
 #include "video/ega.h"
@@ -554,6 +556,8 @@ void Computer::runTask(void *pvParameters)
 #if LEGACY_IBMPC_XT_8088
       //TODO m->m_i8255.tick();
 #else
+      // Replaces tick() for host-only key detection,
+      // needed for capturing Ctrl+F4 to resume the system when paused.
       m->m_i8042.tickHostOnly();
 #endif
       vTaskDelay(1);
@@ -1254,9 +1258,22 @@ void Computer::audio_volumeDown()
   printf("computer: Set volume = %d\n", vol);
 }
 
-void Computer::video_snapshot()
+void Computer::video_snapshot(const char *path)
 {
+  uint8_t *framebuffer;
+  uint16_t width;
+  uint16_t height;
 
+  pause();
+
+  framebuffer = m_video.rawSnapshot(&width, &height);
+
+  resume();
+
+  if (framebuffer) {
+    int rc = snapshot(width, height, framebuffer, path);
+    heap_caps_free((void *) framebuffer);
+  }
 }
 
 void Computer::printEquipmentWord()
