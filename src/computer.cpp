@@ -230,7 +230,7 @@ void Computer::init()
 
   static char path[MAX_FILEPATH_LEN];
 
-  sprintf(path, "%s%s", SD_MOUNT_PATH, cfg.image_path);
+  sprintf(path, "%s%s", SD_MOUNT_PATH, cfg.media_path);
 
   setBaseDirectory(path);
   // Mount drives

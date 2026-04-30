@@ -33,4 +33,10 @@ typedef void (*unzip_progress_callback_t)(void *ctx,
                                           int percent,
                                           const char *msg);
 
-int unzip_file_to_path(char *filename, const char *path, unzip_progress_callback_t progress_callback = NULL, void *ctx = NULL);
+
+// Extract a ZIP file to a destination path.
+// progress_callback may be NULL (no progress reporting)
+int unzip_file_to_path(char *filename,
+                       const char *path,
+                       unzip_progress_callback_t progress_callback = NULL,
+                       void *ctx = NULL);

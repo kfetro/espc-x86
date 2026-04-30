@@ -285,7 +285,7 @@ void Settings::mount_disk_image(const int index, char *filename)
 
   m_osd->progress(27, 11, 26, 0, "", true);
 
-  sprintf(filepath, "%s%s/tmpfs%d.img", SD_MOUNT_PATH, cfg.image_path, index);
+  sprintf(filepath, "%s%s/tmpfs%d.img", SD_MOUNT_PATH, cfg.media_path, index);
 
   // Create a mount file image
   ret = vfs_fat_create_image(filepath, FAT_MOUNT_PATH, floppy);

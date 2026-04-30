@@ -29,11 +29,14 @@
 #define MAX_FILEPATH_LEN 256
 
 // Path to emulator configuration file
-#define SETUP_CONFIG_PATH "/sdcard/i8086/setup.cfg"
+#define SETUP_BASE_PATH           SD_MOUNT_PATH "/espc-x86"
+#define SETUP_CONFIG_PATH         SETUP_BASE_PATH "/setup.cfg"
 
 // Default paths
-#define SETUP_DEFAULT_DISKS_PATH "/i8086/dsk"
-#define SETUP_DEFAULT_IMAGE_PATH "/i8086/img"
+#define SETUP_DEFAULT_MEDIA_PATH  SETUP_BASE_PATH "/media"
+#define SETUP_DEFAULT_DISKS_PATH  SETUP_BASE_PATH "/disks"
+#define SETUP_SNAPHOTS_PATH       SETUP_BASE_PATH "/snapshots"
+
 
 // Default values
 #define SETUP_DEFAULT_VIDEO     0   // CGA
@@ -60,8 +63,8 @@ struct Setup {
   bool     turbo;            // Turbo mode
   bool     mouse;            // Mouse enabled
 
+  char     media_path[128];  // Path to disk images
   char     disks_path[128];  // Path to ZIP files
-  char     image_path[128];  // Path to disk images
 
   char     drive[4][128];    // A:..D: (filenames or relative paths)
   uint8_t  boot;             // Boot drive index (0..3)

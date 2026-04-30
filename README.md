@@ -72,6 +72,35 @@ The easiest way to install ESPC‑x86 is using the **online firmware flasher**.
 3. Select the correct **COM port**.
 4. Load the firmware `.bin` file at address `0x0` and start flashing.
 
+## Configuration
+
+### SD Card
+
+**espc-x86** requires a specific directory structure to work. If these directories are not found during the first boot, the emulator will create them automatically for you.
+
+#### Directory Structure Example:
+
+```text
+/
+└── [espc-x86]
+    ├── setup.cfg          <-- Global settings (edited via Ctrl+F1 menu)
+    ├── [media]            <-- All floppy and hard drive images (.img)
+    │   ├── msdos622.img   <-- Your primary OS disk image
+    │   └── tmp_a.img      <-- Virtual disk generated from a ZIP
+    ├── [disks]            <-- Software library in .ZIP format
+    │   ├── prince.zip     <-- Games, Apps, Windows 3.11, etc.
+    │   └── gwbasic.zip
+    └── [snapshots]        <-- Saved CPU and RAM states
+```
+
+#### Detailed Description:
+
+*   **media/**: This directory contains all the virtual disk images (.img) used by the emulator. It stores both your previously created bootable images and the temporary images generated during emulation. When you select a ZIP, its content is extracted into an image file here (e.g., `tmp_a.img` for Drive A:) to be mounted. If you load new software into the same unit, the corresponding file in this directory will be overwritten.
+*   **disks/**: This directory holds your applications and games compressed in **.zip** format. These are not mounted directly; instead, their content is extracted into a virtual disk image within the `media/` directory to be used as a floppy or hard drive.
+*   **snapshots/**: This directory is used to store the saved states of the CPU and RAM.
+
+> **Note:** The SD card must be formatted as **FAT32**.
+
 ## Controls
 
 ### Keyboard

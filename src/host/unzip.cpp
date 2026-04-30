@@ -36,7 +36,32 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-// UNZIP zip; // statically allocate the UNZIP structure (41K)
+// Recursively creates all directories in a path (mkdir -p behavior)
+void mkdir_recursive(const char *path)
+{
+  // Make a mutable copy of the path
+  char tmp[512];
+  char *p = NULL;
+  size_t len;
+
+  snprintf(tmp, sizeof(tmp), "%s", path);
+  len = strlen(tmp);
+
+  // If path ends with '/' remove it
+  if (tmp[len - 1] == '/') {
+    tmp[len - 1] = 0;
+  }
+  // Whenever we find '/', temporarily terminate the string
+  // and make directory
+  for (p = tmp + 1; *p; p++) {
+    if (*p == '/') {
+      *p = 0;
+      mkdir(tmp, 0755);
+      *p = '/';
+    }
+  }
+  mkdir(tmp, 0755);
+}
 
 void *unzip_open_callback(const char *szFilename, int32_t *pFileSize)
 {
@@ -81,87 +106,114 @@ int32_t unzip_seek_callback(void *pFile, int32_t iPosition, int iType)
   return fseek(fd, iPosition, iType);
 }
 
+// Aggregated unzip context, this avoids multiple allocs
+// and makes cleanup trivial
+typedef struct {
+  unz_file_info fileInfo;
+  char    szComment[256];
+  char    szName[256];
+  char    filepath[512]; // Destination full path
+  uint8_t buffer[4096];  // Extraction I/O buffer
+  UNZIP   hZip; // unzipLIB ZIP context
+} unzip_t;
+
 int unzip_file_to_path(char *filename, const char *path, unzip_progress_callback_t progress_callback, void *ctx)
 {
   int rc;
-  UNZIP *zip;
-  static char szComment[256], szName[256];
-  static char filepath[512];
 
-  zip = (UNZIP *) heap_caps_malloc(sizeof(UNZIP), MALLOC_CAP_SPIRAM);
-  if (!zip) {
+  unzip_t *unzip = (unzip_t *) heap_caps_malloc(sizeof(unzip_t), MALLOC_CAP_SPIRAM);
+  if (!unzip) {
     printf("unzip: ERROR! Unable to allocate memory\n");
     return UNZIP_ERROR;
   }
 
-  rc = zip->openZIP(filename, unzip_open_callback, unzip_close_callback, unzip_read_callback, unzip_seek_callback);
+  rc = unzip->hZip.openZIP(filename, unzip_open_callback,
+                                     unzip_close_callback,
+                                     unzip_read_callback,
+                                     unzip_seek_callback);
   if (rc != UNZ_OK) {
     printf("unzip: ERROR! Unable to open zip file %s\n", filename);
-    heap_caps_free(zip);
+    heap_caps_free((void *) unzip);
     return UNZIP_ERROR;
   }
 
-  rc = zip->getGlobalComment(szComment, sizeof(szComment));
-  printf("zip: Global comment = %s\n", szComment);
+  rc = unzip->hZip.getGlobalComment(unzip->szComment, sizeof(unzip->szComment));
+  printf("zip: Global comment = %s\n", unzip->szComment);
 
   unsigned long totalSize = 0;
   if (progress_callback) {
-    rc = zip->gotoFirstFile();
+  	// Pre-compute total size
+    rc = unzip->hZip.gotoFirstFile();
     while (rc == UNZ_OK) {
-      unz_file_info f_info;
-      rc = zip->getFileInfo(&f_info, szName, sizeof(szName), NULL, 0, szComment, sizeof(szComment));
+      rc = unzip->hZip.getFileInfo(&unzip->fileInfo,
+                                   unzip->szName, sizeof(unzip->szName),
+                                   NULL, 0,
+                                   unzip->szComment, sizeof(unzip->szComment));
       if (rc == UNZ_OK) {
-        totalSize += f_info.uncompressed_size;
+        totalSize += unzip->fileInfo.uncompressed_size;
       }
-      rc = zip->gotoNextFile();
+      rc = unzip->hZip.gotoNextFile();
     }
   }
 
   unsigned long curSize = 0;
-  rc = zip->gotoFirstFile();
+  rc = unzip->hZip.gotoFirstFile();
   while (rc == UNZ_OK) {
-    unz_file_info f_info;
-
-    rc = zip->getFileInfo(&f_info, szName, sizeof(szName), NULL, 0, szComment, sizeof(szComment));
+    rc = unzip->hZip.getFileInfo(&unzip->fileInfo,
+                                 unzip->szName, sizeof(unzip->szName),
+                                 NULL, 0,
+                                 unzip->szComment, sizeof(unzip->szComment));
     if (rc == UNZ_OK) {
-      printf("unzip: %s (%lu/%lu)\n", szName, f_info.compressed_size, f_info.uncompressed_size);
-      if (zip->openCurrentFile() == UNZ_OK) {
-        sprintf(filepath, "%s/%s", path, szName);
+      printf("unzip: %s (%lu/%lu)\n", unzip->szName, unzip->fileInfo.compressed_size,
+                                                     unzip->fileInfo.uncompressed_size);
 
-        FILE *fd = fopen(filepath, "wb");
+      snprintf(unzip->filepath, sizeof(unzip->filepath), "%s/%s", path, unzip->szName);
+  
+      bool is_dir = (unzip->szName[strlen(unzip->szName) - 1] == '/');
+
+      if (is_dir) {
+        mkdir_recursive(unzip->filepath);
+      } else {
+        char *last_slash = strrchr(unzip->filepath, '/');
+        if (last_slash) {
+          *last_slash = 0;
+          mkdir_recursive(unzip->filepath);
+          *last_slash = '/';
+        }
+
+        FILE *fd = fopen(unzip->filepath, "wb");
         if (fd == NULL) {
-          printf("unzip: Unable to create file %s\n", filepath);
+          printf("unzip: Unable to create file %s\n", unzip->filepath);
         } else {
-          static uint8_t buffer[4096];
-          int bytes_read = zip->readCurrentFile(buffer, sizeof(buffer));
-          while (bytes_read > 0) {
-            size_t bytes_written = fwrite(buffer, 1, bytes_read, fd);
-            if (bytes_written != bytes_read) {
-              printf("unzip: Unable to write data (%d, %d)\n", bytes_written, bytes_read);
+          if (unzip->hZip.openCurrentFile() == UNZ_OK) {
+            int bytes_read = unzip->hZip.readCurrentFile(unzip->buffer, sizeof(unzip->buffer));
+            while (bytes_read > 0) {
+              size_t bytes_written = fwrite(unzip->buffer, 1, bytes_read, fd);
+              if (bytes_written != bytes_read) {
+                printf("unzip: Unable to write data (%d, %d)\n", bytes_written, bytes_read);
+              }
+              bytes_read = unzip->hZip.readCurrentFile(unzip->buffer, sizeof(unzip->buffer));
             }
-            bytes_read = zip->readCurrentFile(buffer, sizeof(buffer));
+            unzip->hZip.closeCurrentFile();
           }
           fclose(fd);
         }
 
-      if (progress_callback) {
-        curSize += f_info.uncompressed_size;
-        progress_callback(ctx, (int) (100 * curSize / totalSize), szName);
-      }
+        if (progress_callback) {
+          curSize += unzip->fileInfo.uncompressed_size;
+          progress_callback(ctx, (int) (100 * curSize / totalSize), unzip->szName);
+        }
 
-      zip->closeCurrentFile();
+        // Yield the CPU and avoid WDT in long loops
+        vTaskDelay(1);
       }
     }
-
-    // Yield the CPU and avoid WDT in long loops
-    vTaskDelay(1);
-
-    rc = zip->gotoNextFile();
+    rc = unzip->hZip.gotoNextFile();
   }
 
-  zip->closeZIP();
+  unzip->hZip.closeZIP();
 
-  heap_caps_free(zip);
+  heap_caps_free((void *) unzip);
 
 // Only for debug
 #if 0
