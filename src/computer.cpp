@@ -135,7 +135,7 @@ void Computer::init()
   // Clear memory
   memset(s_memory, 0, RAM_SIZE);
 
-  setupLoad(SETUP_CONFIG_PATH, &cfg);
+  setupLoad(&cfg);
 
   m_video.init(s_memory);
   // Video cards

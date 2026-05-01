@@ -138,40 +138,6 @@ int snapshot(uint16_t width, uint16_t height, uint8_t *src, const char *path)
 
   const int64_t t0 = esp_timer_get_time();
 
-#if 0
-  // Note that src is NOT linear since VGADirectController stores
-  // pixels with byte swizzle: pixel X is stored at row[X ^ 2]
-  for (uint16_t y = 0; y < height; y++) {
-
-    const uint8_t *srcRow = src + (uint32_t) y * width;
-
-    // Fast path for widths multiple of 4 (320/640/etc.)
-    for (uint16_t x = 0; x + 3 < width; x += 4) {
-
-      // Process 4 pixels at a time: physical bytes [0,1,2,3] correspond to pixels [2,3,0,1]
-      uint8_t buf4[4];
-
-      // Read 4 physical bytes
-      uint8_t b0 = srcRow[x + 0];
-      uint8_t b1 = srcRow[x + 1];
-      uint8_t b2 = srcRow[x + 2];
-      uint8_t b3 = srcRow[x + 3];
-
-      // Unswizzle to linear pixel order and mask sync bits
-      buf4[0] = b2 & colorMask;  // pixel x+0
-      buf4[1] = b3 & colorMask;  // pixel x+1
-      buf4[2] = b0 & colorMask;  // pixel x+2
-      buf4[3] = b1 & colorMask;  // pixel x+3
-
-      fwrite(buf4, 1, 4, fd);
-    }
-
-    // Row padding (BMP)
-    for (uint32_t p = 0; p < pad; p++) {
-      fputc(padByte, fd);
-    }
-  }
-#else
   // 4KB output buffer in PSRAM (minimize DRAM usage)
   uint8_t *outBuf = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   if (!outBuf) {
@@ -232,7 +198,6 @@ int snapshot(uint16_t width, uint16_t height, uint8_t *src, const char *path)
   }
 
   heap_caps_free(outBuf);
-#endif
 
   const int64_t t1 = esp_timer_get_time();
 

@@ -133,7 +133,7 @@ void setupDirStructure()
   }
 }
 
-int setupLoad(const char *path, Setup *cfg)
+int setupLoad(Setup *cfg, const char *filepath)
 {
   FILE *fd;
 
@@ -143,12 +143,12 @@ int setupLoad(const char *path, Setup *cfg)
   // Check directory structure (and create them if missing)
   setupDirStructure();
 
-  fd = fopen(path, "r");
+  fd = fopen(filepath, "r");
   if (!fd) {
-    printf("setup: Unable to open configuration file %s\n", path);
+    printf("setup: Unable to open configuration file %s\n", filepath);
     // Configuration missing: create it with defaults
     printf("setup: Saving defaults...\n");
-    setupSave(path, cfg);
+    setupSave(cfg, filepath);
     return SETUP_ERROR;
   }
 
@@ -234,13 +234,13 @@ int setupLoad(const char *path, Setup *cfg)
   return SETUP_OK;
 }
 
-int setupSave(const char *path, const Setup *cfg)
+int setupSave(const Setup *cfg, const char *filepath)
 {
   FILE *fd;
   
-  fd = fopen(path, "w");
+  fd = fopen(filepath, "w");
   if (!fd) {
-    printf("setup: Unable to save configuration file %s\n", path);
+    printf("setup: Unable to save configuration file %s\n", filepath);
     return SETUP_ERROR;
   }
 

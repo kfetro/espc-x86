@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 
+// Return values
 #define SETUP_OK    0
 #define SETUP_ERROR 1
 
@@ -33,7 +34,7 @@
 
 // Path to emulator configuration file
 #define SETUP_BASE_PATH           SD_MOUNT_PATH "/espc-x86"
-#define SETUP_CONFIG_PATH         SETUP_BASE_PATH "/setup.cfg"
+#define SETUP_CONFIG_FILEPATH     SETUP_BASE_PATH "/setup.cfg"
 
 // Default paths
 #define SETUP_DEFAULT_MEDIA_PATH  SETUP_BASE_PATH "/media"
@@ -75,8 +76,8 @@ struct Setup {
   uint8_t  boot;             // Boot drive index (0..3)
 };
 
-// Load configuration from SETUP_CONFIG_PATH
-int setupLoad(const char *path, Setup *cfg);
+// Load configuration
+int setupLoad(Setup *cfg, const char *filepath = SETUP_CONFIG_FILEPATH);
 
-// Save configuration to SETUP_CONFIG_PATH
-int setupSave(const char *path, const Setup *cfg);
+// Save configuration
+int setupSave(const Setup *cfg, const char *filepath = SETUP_CONFIG_FILEPATH);

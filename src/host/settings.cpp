@@ -53,7 +53,7 @@ void Settings::show()
 
   init(ctx->vram());
 
-  setupLoad(SETUP_CONFIG_PATH, &cfg);
+  setupLoad(&cfg);
 
   m_osd->frame(0, 0, 80, 25, Lang::get(Lang::Msg::MenuTitle),
                true, COL_WHITE, COL_BLUE, false, false);
@@ -115,7 +115,7 @@ void Settings::show()
         if (ret == 0) {
           cfg.video = (uint8_t) video;
           cfg.sound = (uint8_t) sound;
-          setupSave(SETUP_CONFIG_PATH, &cfg);
+          setupSave(&cfg);
           esp_restart();
         }
       }

@@ -8,12 +8,13 @@
 </p>
 
 <p align="center">
-  #what-is-espc-x86 •
-  #hardware •
-  #features •
-  #installation •
-  #controls •
-  #licenseLicense
+  <a href="#what-is-espc-86">What is ESPC‑86?</a> •
+  <a href="#hardware">Hardware</a> •
+  <a href="#features">Features</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#configuration">Configuration</a> •
+  <a href="#controls">Controls</a> •
+  <a href="#license">License</a>
 </p>
 
 ---
