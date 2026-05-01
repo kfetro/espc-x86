@@ -23,6 +23,9 @@
 
 #include <stdint.h>
 
+#define SETUP_OK    0
+#define SETUP_ERROR 1
+
 #define SD_MOUNT_PATH  "/sdcard"
 #define FAT_MOUNT_PATH "/fat"
 
@@ -46,6 +49,7 @@
 
 #define SETUP_DEFAULT_RAM       640 // KB
 #define SETUP_DEFAULT_KEYBOARD  0   // XT
+#define SETUP_DEFAULT_KEYMAP    "US"
 #define SETUP_DEFAULT_TURBO     0
 #define SETUP_DEFAULT_MOUSE     0
 
@@ -60,6 +64,7 @@ struct Setup {
 
   uint16_t ram;              // RAM size in KB
   uint8_t  keyboard;         // 0 = XT, 1 = AT
+  char     keymap[8];        // "US", "UK", "ES"
   bool     turbo;            // Turbo mode
   bool     mouse;            // Mouse enabled
 
@@ -71,7 +76,7 @@ struct Setup {
 };
 
 // Load configuration from SETUP_CONFIG_PATH
-bool setupLoad(const char *path, Setup *cfg);
+int setupLoad(const char *path, Setup *cfg);
 
 // Save configuration to SETUP_CONFIG_PATH
-bool setupSave(const char *path, const Setup *cfg);
+int setupSave(const char *path, const Setup *cfg);

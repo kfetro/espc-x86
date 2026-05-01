@@ -197,7 +197,7 @@ int snapshot(uint16_t width, uint16_t height, uint8_t *src, const char *path)
       uint8_t b3 = srcRow[x + 3];
 
       // Unswizzle to linear pixel order:
-      // pixels [x+0..x+3] = bytes [2,3,0,1] and mask sync bits. [1](https://upm365-my.sharepoint.com/personal/jesus_martinez_mateo_upm_es/Documents/Archivos%20de%20Microsoft%C2%A0Copilot%20Chat/snapshot.cpp)
+      // pixels [x+0..x+3] = bytes [2,3,0,1] and mask sync bits
       uint8_t p0 = b2 & colorMask;
       uint8_t p1 = b3 & colorMask;
       uint8_t p2 = b0 & colorMask;
