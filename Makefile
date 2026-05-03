@@ -1,45 +1,41 @@
 # ESPC-x86 — Top-level Makefile
 #
-# Targets:
-#   make              — build both ESP32 and native
-#   make esp32        — build the ESP32 firmware
-#   make native       — build the native (host) binary
-#   make test         — build and run native unit tests
-#   make run          — build and run the native binary
-#   make flash        — build and flash ESP32 firmware
-#   make monitor      — open ESP32 serial monitor
-#   make clean        — clean all build artifacts
-#   make clean-esp32  — clean ESP32 build only
-#   make clean-native — clean native build only
+# Run `make help` to list available targets.
 
 PIO ?= pio
 
-.PHONY: all esp32 native test run flash monitor clean clean-esp32 clean-native
+.DEFAULT_GOAL := help
 
-all: esp32 native
+.PHONY: help all esp32 native test run flash monitor clean clean-esp32 clean-native
 
-esp32:
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n\nTargets:\n"} \
+		/^[a-zA-Z0-9_-]+:.*##/ { printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+
+all: esp32 native ## Build both ESP32 and native
+
+esp32: ## Build the ESP32 firmware
 	$(PIO) run -e esp32dev
 
-native:
+native: ## Build the native (host) binary
 	$(PIO) run -e native
 
-test:
+test: ## Build and run native unit tests
 	$(PIO) test -e native
 
-run: native
+run: native ## Build and run the native binary
 	$(PIO) run -e native -t exec
 
-flash:
+flash: ## Build and flash ESP32 firmware
 	$(PIO) run -e esp32dev -t upload
 
-monitor:
+monitor: ## Open ESP32 serial monitor
 	$(PIO) device monitor
 
-clean: clean-esp32 clean-native
+clean: clean-esp32 clean-native ## Clean all build artifacts
 
-clean-esp32:
+clean-esp32: ## Clean ESP32 build only
 	$(PIO) run -e esp32dev -t clean 2>/dev/null || true
 
-clean-native:
+clean-native: ## Clean native build only
 	$(PIO) run -e native -t clean 2>/dev/null || true
