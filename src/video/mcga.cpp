@@ -391,7 +391,7 @@ void MCGA::handleInt10h()
         printf("mcga: Start address = 0x%04x (active page %d)\n", m_startAddress, m_activePage);
       }
 
-      const uint8_t addr_hi = (uint8_t) ((m_startAddress >> 8) & 0xFF);
+      const uint8_t addr_hi = (uint8_t) ((m_startAddress >> 8) & 0x3F);
       const uint8_t addr_lo = (uint8_t) ( m_startAddress       & 0xFF);
 
       // Update BDA
@@ -517,8 +517,10 @@ void MCGA::handleInt10h()
         }
       }
       // Apply the new palette settings
+      m_video->pause(true);
       m_video->updateLUT();
       m_video->setBorder(m_colorSelect & 0x0F);
+      m_video->pause(false);
       break;
     }
 
@@ -585,7 +587,9 @@ void MCGA::handleInt10h()
 
           // Update the scanout palette (index -> RGB222)
           MCGA_palette[index] = RGB666toRGB222(r6, g6, b6);
+          m_video->pause(true);
           m_video->updateLUT();
+          m_video->pause(false);
 
           i8086::setFlagCF(false);
           break;
@@ -618,7 +622,9 @@ void MCGA::handleInt10h()
             MCGA_palette[index] = RGB666toRGB222(r6, g6, b6);
           }
 
+          m_video->pause(true);
           m_video->updateLUT();
+          m_video->pause(false);
 
           i8086::setFlagCF(false);
           break;
@@ -772,10 +778,13 @@ void MCGA::writePort(uint16_t port, uint8_t value)
 
         // Start Address High and Low
         case MCGA_CRTC_STARTADDR_HI:
+          // bit 7 6 5 4 3 2 1 0
+          //     | | +-+-+-+-+-+- [0-5] Start address bits 8-13
+          //     +-+------------- [6-7] Reserved
         case MCGA_CRTC_STARTADDR_LO:
         {
-          const uint16_t addr_hi = (uint16_t) m_crtc[MCGA_CRTC_STARTADDR_HI] << 8;
-          const uint16_t addr_lo = (uint16_t) m_crtc[MCGA_CRTC_STARTADDR_LO];
+          const uint16_t addr_hi = (uint16_t) (m_crtc[MCGA_CRTC_STARTADDR_HI] & 0x3F) << 8;
+          const uint16_t addr_lo = (uint16_t)  m_crtc[MCGA_CRTC_STARTADDR_LO];
           const uint16_t oldAddr = m_startAddress;
           m_startAddress = addr_hi | addr_lo;
           if (m_startAddress != oldAddr) {
@@ -831,8 +840,10 @@ void MCGA::writePort(uint16_t port, uint8_t value)
     // Color Select Register
     case MCGA_PORT_COLORSEL:
       m_colorSelect = value;
+      m_video->pause(true);
       m_video->updateLUT();
       m_video->setBorder(m_colorSelect);
+      m_video->pause(false);
       break;
 
     default:

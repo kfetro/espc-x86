@@ -78,7 +78,9 @@ public:
   void pause(bool enable) { m_scanout.pause(enable); }
   void showVolume(uint8_t vol) { m_scanout.showVolume(vol); }
 
-  uint8_t *rawSnapshot(uint16_t *width, uint16_t *height) { return m_scanout.rawSnapshot(width, height); }
+  uint8_t *rawScreenshot(uint16_t *width, uint16_t *height) { return m_scanout.rawScreenshot(width, height); }
+
+  void toggleCompositeMonitor() { m_scanout.toggleCompositeFilter(); }
 
 private:
 

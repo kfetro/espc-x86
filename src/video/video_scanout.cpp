@@ -58,6 +58,8 @@ VideoScanout::VideoScanout() :
   m_rawPixelLUT(nullptr),
   m_cursorGlyph(nullptr),
   m_OSD_showVolume(false),
+  m_compositeMonitor(false),
+  m_compositeLUT(nullptr),
   m_context(nullptr),
   m_vram(nullptr),
   m_startAddress(0),
@@ -123,7 +125,7 @@ void VideoScanout::setMode(int mode)
       m_width = 320;
       m_height = 240;
       m_callback = drawScanline_text_40x25;
-      m_scanLines = 4;
+      m_scanLines = 1;
       m_modeLine = QVGA_320x240_60Hz;
       reallocFont(&FONT_Bm437_Amstrad_PC);
       updateCursorGlyph();
@@ -134,7 +136,7 @@ void VideoScanout::setMode(int mode)
       m_width = 640;
       m_height = 240;
       m_callback = drawScanline_text_80x25;
-      m_scanLines = 4;
+      m_scanLines = 1;
       m_modeLine = VGA_640x240_60Hz;
       if (m_context->isPlanar()) {
         reallocFont(&FONT_Bm437_IBM_EGA_8x8);
@@ -159,7 +161,7 @@ void VideoScanout::setMode(int mode)
     case CGA_MODE_GFX_320x200_4COLORS:
     case CGA_MODE_GFX_320x200_4COLORS_ALT:
       m_width = 320;
-      m_height = 200;
+      m_height = 240;
       m_callback = drawScanline_cga_320x200x4;
       m_scanLines = 1;
       m_modeLine = QVGA_320x240_60Hz;
@@ -167,7 +169,7 @@ void VideoScanout::setMode(int mode)
 
     case CGA_MODE_GFX_640x200_2COLORS:
       m_width = 640;
-      m_height = 200;
+      m_height = 240;
       m_callback = drawScanline_cga_640x200x2;
       m_scanLines = 1;
       m_modeLine = VGA_640x240_60Hz;
@@ -627,7 +629,7 @@ void VideoScanout::removeCursorGlyph()
 void VideoScanout::setBorder(uint8_t color)
 {
   m_rawBorderColor = m_VGADCtrl->createRawPixel(m_context->paletteMap(color, 16));
-  printf("video: Set border color = %d\n", color);
+  //printf("video: Set border color = %d\n", color);
 }
 
 void VideoScanout::showVolume(uint8_t volume)
@@ -637,7 +639,7 @@ void VideoScanout::showVolume(uint8_t volume)
   m_OSD_showVolume = true;
 }
 
-uint8_t *VideoScanout::rawSnapshot(uint16_t *width, uint16_t *height)
+uint8_t *VideoScanout::rawScreenshot(uint16_t *width, uint16_t *height)
 {
   const size_t bufferSize = (size_t) m_width * m_height;
 
@@ -660,6 +662,36 @@ uint8_t *VideoScanout::rawSnapshot(uint16_t *width, uint16_t *height)
   return framebuffer;
 }
 
+void VideoScanout::toggleCompositeFilter()
+{
+  if (m_compositeMonitor == false) {
+
+    // Allocate memory for composite LUT
+    m_compositeLUT = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    if (!m_compositeLUT) {
+      printf("video: Unable to allocate memory for the composite LUT!\n");
+    }
+
+    // Initialize composite LUT
+    for (uint16_t prev = 0; prev < 64; prev++) {
+      for (uint16_t cur = 0; cur < 64; cur++) {
+        uint16_t idx = (prev << 6) | cur;
+        m_compositeLUT[idx] = compositeRGB222_core((uint8_t) cur, (uint8_t) prev);
+      }
+    }
+
+    m_compositeMonitor = true;
+  } else {
+    m_compositeMonitor = false;
+    //TODO Sleep...
+
+    // Free memory
+    heap_caps_free((void *) m_compositeLUT);
+    m_compositeLUT = nullptr;
+  }
+}
+
+#if 0
 void IRAM_ATTR VideoScanout::drawScanline_text_40x25(void *ctx, uint8_t *dst, int scanLine)
 {
   constexpr int pixelsLine = 320;
@@ -779,22 +811,160 @@ void IRAM_ATTR VideoScanout::drawScanline_text_40x25(void *ctx, uint8_t *dst, in
     dst += 8;
   }
 }
+#else
+void IRAM_ATTR VideoScanout::drawScanline_text_40x25(void *ctx, uint8_t *dst, int scanLine)
+{
+  constexpr int pixelsLine = 320;
+  constexpr int textCols   = 40;
+  // Font data values
+  constexpr int charWidth  = 8;
+  constexpr int charHeight = 8;
+  constexpr int charBytes  = (charWidth + 7) / 8;    // Char width in bytes
+  constexpr int charSize   = charBytes * charHeight; // Char size in bytes
+
+  auto output = (VideoScanout *) ctx;
+
+  const int scanLines = output->m_scanLines;
+
+  if ((scanLine == 0) && (output->m_state == State::Running)) {
+    output->m_frameCounter++;
+
+    // Video adapter context
+    ScanoutContext *adapter = output->m_context;
+
+    output->m_startAddress = adapter->startAddress();
+    output->m_textPageSize = adapter->textPageSize();
+    const uint8_t page = adapter->activePage();
+    output->m_activePage = page;
+    output->m_cursorRow = adapter->cursorRow(page);
+    output->m_cursorCol = adapter->cursorCol(page);
+    output->m_cursorEnabled = adapter->cursorEnabled();
+    output->blinkEnabled = false;//adapter->blinkEnabled();
+
+    output->m_charHeight = adapter->charHeight();
+
+    const uint8_t verticalDisplayed = adapter->getCRTC(0x06);
+    output->m_visibleRows = (verticalDisplayed & 0x3F) + 1;
+
+    const uint8_t vSyncRow = adapter->getCRTC(0x07) & 0x7F;
+  }
+
+  const int activeAreaStart = 20;//20 + vSyncRow * output->m_charHeight;
+  const int activeAreaEnd = 220;//activeAreaStart + output->m_visibleRows * output->m_charHeight;
+
+  if (scanLine == activeAreaStart) {
+    output->m_vertRetrace = false;
+  } else if (scanLine == activeAreaEnd) {
+    output->m_vertRetrace = true;
+  }
+
+  if ((scanLine < activeAreaStart) || (scanLine >= activeAreaEnd)) {
+    memset(dst, output->m_rawBorderColor, pixelsLine * scanLines);
+    return;
+  }
+
+  const int activeScanLine = scanLine - activeAreaStart;
+  const int charScanline = activeScanLine % output->m_charHeight;
+  const int textRow      = activeScanLine / output->m_charHeight;
+
+  uint8_t const *fontData = output->m_font.data + (charScanline * charBytes);
+
+  // Note that in CGA video cards page base (m_activePage * m_textPageSize)
+  // and m_startAddress are the SAME offset
+  // const uint32_t pageBase = (uint32_t) output->m_activePage * output->m_textPageSize;
+  const uint32_t vramMask = output->m_vramSize - 1;
+  const uint32_t base = (output->m_startAddress << 1) & vramMask; // words to bytes
+
+  uint8_t *src = output->m_vram + base + (textRow * textCols * 2);
+  uint8_t *LUT = output->m_rawPixelLUT;
+
+  bool showCursor = output->m_cursorEnabled && output->m_cursorRow == textRow && ((output->m_frameCounter & 0x1f) < 0xf);
+  int cursorCol = output->m_cursorCol;
+
+  bool bit7blink = output->blinkEnabled;
+  bool blinktime = bit7blink && !((output->m_frameCounter & 0x3f) < 0x1f);
+
+  for (int textCol = 0; textCol < textCols; textCol++) {
+
+    int charIdx  = *src++;
+    int charAttr = *src++;
+
+    bool blink = false;
+    if (bit7blink) {
+      blink = blinktime && (charAttr & 0x80);
+      charAttr &= 0x7f;
+    }
+
+    uint8_t bg = LUT[charAttr >> 4];
+    uint8_t fg = blink ? bg : LUT[charAttr & 0xf];
+
+    const uint8_t colors[2] = { bg, fg };
+
+    uint8_t const *p_charBitmap = fontData + charIdx * charSize;
+
+    auto p_dst = dst;
+
+    if (showCursor && textCol == cursorCol) {
+
+      uint8_t const *p_cursorBitmap = output->m_cursorGlyph + (charScanline * charBytes);
+
+      for (int charRow = 0; charRow < scanLines; charRow++) {
+
+        uint32_t charBitmap = *p_charBitmap | *p_cursorBitmap;
+
+        *(p_dst + 0) = colors[(bool)(charBitmap & 0x20)];
+        *(p_dst + 1) = colors[(bool)(charBitmap & 0x10)];
+        *(p_dst + 2) = colors[(bool)(charBitmap & 0x80)];
+        *(p_dst + 3) = colors[(bool)(charBitmap & 0x40)];
+        *(p_dst + 4) = colors[(bool)(charBitmap & 0x02)];
+        *(p_dst + 5) = colors[(bool)(charBitmap & 0x01)];
+        *(p_dst + 6) = colors[(bool)(charBitmap & 0x08)];
+        *(p_dst + 7) = colors[(bool)(charBitmap & 0x04)];
+
+        p_dst += pixelsLine;
+        p_charBitmap += charBytes;
+        p_cursorBitmap += charBytes;
+      }
+
+    } else {
+
+      for (int charRow = 0; charRow < scanLines; charRow++) {
+
+        uint32_t charBitmap = *p_charBitmap;
+
+        *(p_dst + 0) = colors[(bool)(charBitmap & 0x20)];
+        *(p_dst + 1) = colors[(bool)(charBitmap & 0x10)];
+        *(p_dst + 2) = colors[(bool)(charBitmap & 0x80)];
+        *(p_dst + 3) = colors[(bool)(charBitmap & 0x40)];
+        *(p_dst + 4) = colors[(bool)(charBitmap & 0x02)];
+        *(p_dst + 5) = colors[(bool)(charBitmap & 0x01)];
+        *(p_dst + 6) = colors[(bool)(charBitmap & 0x08)];
+        *(p_dst + 7) = colors[(bool)(charBitmap & 0x04)];
+
+        p_dst += pixelsLine;
+        p_charBitmap += charBytes;
+      }
+    }
+    dst += 8;
+  }
+
+}
+#endif
 
 void IRAM_ATTR VideoScanout::drawScanline_text_80x25(void *ctx, uint8_t *dst, int scanLine)
 {
   constexpr int pixelsLine = 640;
   constexpr int textCols   = 80;
+  // Font values
   constexpr int charWidth  = 8;
   constexpr int charHeight = 8;
   constexpr int charBytes  = (charWidth + 7) / 8;    // Char width in bytes
   constexpr int charSize   = charBytes * charHeight; // Char size in bytes
-  constexpr int scanLines  = 4;
 
   auto output = (VideoScanout *) ctx;
-/*
-  if ((output->m_state == State::Paused) && xPortInIsrContext())
-    return;
-*/
+
+  const int scanLines = output->m_scanLines;
+
   if ((scanLine == 0) && (output->m_state == State::Running)) {
     output->m_frameCounter++;
 
@@ -809,25 +979,46 @@ void IRAM_ATTR VideoScanout::drawScanline_text_80x25(void *ctx, uint8_t *dst, in
     output->m_cursorCol = adapter->cursorCol(page);
     output->m_cursorEnabled = adapter->cursorEnabled();
     output->blinkEnabled = adapter->blinkEnabled();
+
+    output->m_charHeight = adapter->charHeight();
+
+    const uint8_t verticalDisplayed = adapter->getCRTC(0x06);
+    output->m_visibleRows = (verticalDisplayed & 0x3F) + 1;
+
+    const uint8_t vSyncRow = adapter->getCRTC(0x07) & 0x7F;
+  }
+
+  //const int charHeight = output->m_charHeight;
+  //const int visibleRows = 200;//output->m_visibleRows;
+
+  // Dynamic active area (border start at line 20)
+  const int activeAreaStart = 20;
+  const int activeAreaEnd = 220;//activeAreaStart + visibleRows * charHeight;
+
+  if (scanLine == activeAreaStart) {
+    output->m_vertRetrace = false;
+  } else if (scanLine == activeAreaEnd) {
+    output->m_vertRetrace = true;
   }
 
   // If the current scanline is outside the CGA active area,
   // fill the entire scanline with the border color.
-  if ((scanLine < 20) || (scanLine >= 220)) {
+  if ((scanLine < activeAreaStart) || (scanLine >= activeAreaEnd)) {
     memset(dst, output->m_rawBorderColor, pixelsLine * scanLines);
     return;
   }
 
-  const int activeScanLine = scanLine - 20;
-  const int charScanline = activeScanLine & (charHeight - 1);
-  const int textRow = activeScanLine / charHeight;
+  const int activeScanLine = scanLine - activeAreaStart;
+  const int charScanline = activeScanLine % charHeight;//output->m_charHeight;
+  const int textRow      = activeScanLine / charHeight;//output->m_charHeight;
 
   uint8_t const *fontData = output->m_font.data + (charScanline * charBytes);
 
   // Note that in CGA video cards page base (m_activePage * m_textPageSize)
   // and m_startAddress are the SAME offset
   // const uint32_t pageBase = (uint32_t) output->m_activePage * output->m_textPageSize;
-  uint32_t base = output->m_startAddress << 1; // words to bytes
+  const uint32_t vramMask = output->m_vramSize - 1;
+  const uint32_t base = (output->m_startAddress << 1) & vramMask; // words to bytes
 
   uint8_t *src = output->m_vram + base + (textRow * textCols * 2);
   uint8_t *LUT = output->m_rawPixelLUT;
@@ -912,11 +1103,11 @@ void IRAM_ATTR VideoScanout::drawScanline_text_80x25(void *ctx, uint8_t *dst, in
     if ((output->m_frameCounter - output->m_OSD_frame) > 150) {
       output->m_OSD_showVolume = false;
     } else {
-      drawOSDVolume(output, pixelsLine, scanLines, charScanline, textRow, dst);
+      output->drawOSDVolume(pixelsLine, scanLines, charScanline, textRow, dst);
     }
   } else if (output->m_state == State::Paused) {
     // Show only when emulator is paused (you must set this flag from Computer/VideoSystem)
-    drawOSDPause(output, pixelsLine, scanLines, charScanline, textRow, dst);
+    output->drawOSDPause(pixelsLine, scanLines, charScanline, textRow, dst);
   }
 }
 
@@ -1056,13 +1247,31 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_320x200x4(void *ctx, uint8_t *dst,
     output->m_startAddress = adapter->startAddress();
   }
 
-  const uint32_t base = (output->m_startAddress << 1) & vramMask; // words to bytes
+  const int activeAreaStart = 20;
+  const int activeAreaEnd = 220;
+
+  if (scanLine == activeAreaStart) {
+    output->m_vertRetrace = false;
+  } else if (scanLine == activeAreaEnd) {
+    output->m_vertRetrace = true;
+  }
+
+  if ((scanLine < activeAreaStart) || (scanLine >= activeAreaEnd)) {
+    memset(dst, output->m_rawBorderColor, pixelsLine);
+    return;
+  }
+
+  const int activeScanLine = scanLine - activeAreaStart;
+
+  // Ensure start address wraps within the 8 KB boundary (0x1FFF bytes)
+  // CGA hardware does not allow the start address to cross or change banks
+  const uint32_t base = (output->m_startAddress << 1);// & 0x1FFF; // words to bytes
 
   // CGA planar banking:
   // - even scanlines go to bank 0 (offset 0x0000)
   // - odd scanlines go to bank 1 (offset 0x2000)
-  const uint32_t bankOffset = (scanLine & 1) << 13; // 0x2000 if odd
-  const uint32_t lineOffset = bytesLine * (scanLine >> 1);
+  const uint32_t bankOffset = (activeScanLine & 1) << 13; // 0x2000 if odd
+  const uint32_t lineOffset = bytesLine * (activeScanLine >> 1);
 
   const uint32_t offset = (base + bankOffset + lineOffset) & vramMask;
 
@@ -1073,6 +1282,10 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_320x200x4(void *ctx, uint8_t *dst,
 
   for (int i = 0; i < pixelsLine; i += pixelsByte) {
     *dst32++ = LUT32[*src++];
+  }
+
+  if (output->m_compositeMonitor) {
+    output->compositeFilter(dst, pixelsLine);
   }
 }
 
@@ -1093,13 +1306,29 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_640x200x2(void *ctx, uint8_t *dst,
     output->m_startAddress = adapter->startAddress();
   }
 
-  const uint32_t base = (output->m_startAddress << 1) & vramMask; // words to bytes
+  const int activeAreaStart = 20;
+  const int activeAreaEnd = 220;
+
+  if (scanLine == activeAreaStart) {
+    output->m_vertRetrace = false;
+  } else if (scanLine == activeAreaEnd) {
+    output->m_vertRetrace = true;
+  }
+
+  if ((scanLine < activeAreaStart) || (scanLine >= activeAreaEnd)) {
+    memset(dst, output->m_rawBorderColor, pixelsLine);
+    return;
+  }
+
+  const int activeScanLine = scanLine - activeAreaStart;
+
+  const uint32_t base = (output->m_startAddress << 1) & 0x1FFF; // words to bytes
 
   // CGA planar banking:
   // - even scanlines go to bank 0 (offset 0x0000)
   // - odd scanlines go to bank 1 (offset 0x2000)
-  const uint32_t bankOffset = (scanLine & 1) << 13; // 0x2000 if odd
-  const uint32_t lineOffset = bytesLine * (scanLine >> 1);
+  const uint32_t bankOffset = (activeScanLine & 1) << 13; // 0x2000 if odd
+  const uint32_t lineOffset = bytesLine * (activeScanLine >> 1);
 
   const uint32_t offset = (base + bankOffset + lineOffset) & vramMask;
 
@@ -1110,6 +1339,10 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_640x200x2(void *ctx, uint8_t *dst,
 
   for (int i = 0; i < pixelsLine; i += pixelsByte) {
     *dst64++ = LUT64[*src++];
+  }
+
+  if (output->m_compositeMonitor) {
+    output->compositeFilter(dst, pixelsLine);
   }
 }
 
@@ -1526,7 +1759,7 @@ void IRAM_ATTR VideoScanout::drawScanline_mcga_320x200x256(void *ctx, uint8_t *d
 }
 
 inline __attribute__((always_inline))
-void drawOSDVolume(VideoScanout *output, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst)
+void VideoScanout::drawOSDVolume(int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst)
 {
   constexpr int charWidth  = 8;
   constexpr int charHeight = 8;
@@ -1567,9 +1800,10 @@ void drawOSDVolume(VideoScanout *output, int pixelsLine, int scanLines, int char
   // Block start X (right-aligned with margin)
   const int osdStartX = (pixelsLine - rightMargin - blockWidth) & ~7;
 
-  const uint8_t bg  = output->m_OSD_rawPixelBg;  // background (black)
-  const uint8_t fgH = output->m_OSD_rawPixelFgH; // bright foreground (yellow)
-  const uint8_t fgL = output->m_OSD_rawPixelFgL; // light foreground (light gray)
+  const uint8_t *fontData = m_font.data;
+  const uint8_t bg  = m_OSD_rawPixelBg;  // background (black)
+  const uint8_t fgH = m_OSD_rawPixelFgH; // bright foreground (yellow)
+  const uint8_t fgL = m_OSD_rawPixelFgL; // light foreground (light gray)
 
   if (textRow == 0) { // Row 0: Draw "VOLUME"
 
@@ -1582,8 +1816,9 @@ void drawOSDVolume(VideoScanout *output, int pixelsLine, int scanLines, int char
 
     // Precompute glyph base pointers (no STL)
     const uint8_t *glyph[textLen];
-    for (int c = 0; c < textLen; c++)
-      glyph[c] = output->m_font.data + (int) text[c] * charSize;
+    for (int c = 0; c < textLen; c++) {
+      glyph[c] = fontData + (int) text[c] * charSize;
+    }
 
     // Draw the `scanLines` physical scanlines of this callback
     for (int sl = 0; sl < scanLines; sl++) {
@@ -1611,7 +1846,7 @@ void drawOSDVolume(VideoScanout *output, int pixelsLine, int scanLines, int char
     }
   } else if (textRow == 1) { // --- ROW 1: Draw stripes meter ---
 
-    const int activeLines = (output->m_OSD_volumeLevel * totalColorLines) / 127;
+    const int activeLines = (m_OSD_volumeLevel * totalColorLines) / 127;
 
     for (int sl = 0; sl < scanLines; sl++) {
       uint8_t *row = dstBase + sl * pixelsLine;
@@ -1639,7 +1874,7 @@ void drawOSDVolume(VideoScanout *output, int pixelsLine, int scanLines, int char
 }
 
 inline __attribute__((always_inline))
-void drawOSDPause(VideoScanout *output, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst)
+void VideoScanout::drawOSDPause(int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst)
 {
   constexpr int charWidth  = 8;
   constexpr int charHeight = 8;
@@ -1677,8 +1912,9 @@ void drawOSDPause(VideoScanout *output, int pixelsLine, int scanLines, int charS
     return;
 
   // Colors
-  const uint8_t fg = output->m_OSD_rawPixelFgH; // foreground (use same as volume/yellow)
-  const uint8_t bg = output->m_OSD_rawPixelBg;  // background (black)
+  const uint8_t *fontData = m_font.data;
+  const uint8_t fg = m_OSD_rawPixelFgH; // foreground (use same as volume/yellow)
+  const uint8_t bg = m_OSD_rawPixelBg;  // background (black)
 
   // Bit-to-pixel mapping used by your main text renderer:
   // p[0]=0x20, p[1]=0x10, p[2]=0x80, p[3]=0x40, p[4]=0x02, p[5]=0x01, p[6]=0x08, p[7]=0x04
@@ -1691,8 +1927,9 @@ void drawOSDPause(VideoScanout *output, int pixelsLine, int scanLines, int charS
 
   // Precompute glyph pointers
   const uint8_t *glyph[textLen];
-  for (int c = 0; c < textLen; ++c)
-    glyph[c] = output->m_font.data + (int)text[c] * charSize;
+  for (int c = 0; c < textLen; c++) {
+    glyph[c] = fontData + (int)text[c] * charSize;
+  }
 
   // Draw the 4 physical scanlines of this callback
   for (int sl = 0; sl < scanLines; ++sl) {
@@ -1701,36 +1938,112 @@ void drawOSDPause(VideoScanout *output, int pixelsLine, int scanLines, int charS
     uint8_t *line = dstBase + sl * pixelsLine;
 
     // Draw "PAUSE"
-    for (int c = 0; c < textLen; ++c) {
+    for (int c = 0; c < textLen; c++) {
 
       const uint8_t bits = glyph[c][glyphRow * charBytes];
       uint8_t *p = line + osdStartX + c * charWidth;
 
-      for (int px = 0; px < 8; ++px)
+      for (int px = 0; px < 8; px++) {
         p[px] = (bits & bitMask[px]) ? fg : bg;
+      }
     }
 
     // Draw gap (black)
     uint8_t *p = line + osdStartX + textWidth;
-    for (int i = 0; i < gap; ++i)
+    for (int i = 0; i < gap; i++) {
       p[i] = bg;
+    }
 
     // Draw "||" icon
     const int iconX = osdStartX + textWidth + gap;
 
     // Clear icon area
-    for (int i = 0; i < iconWidth; ++i)
+    for (int i = 0; i < iconWidth; i++) {
       line[(iconX + i) ^ 2] = bg;
+    }
 
     // Left bar: starts at 0
-    for (int i = 0; i < pauseBarWidth; ++i)
+    for (int i = 0; i < pauseBarWidth; i++) {
       line[(iconX + i) ^ 2] = fg;
+    }
 
     // Right bar: starts after gap
     const int rightBarX = iconX + pauseBarWidth + pauseBarGap;
-    for (int i = 0; i < pauseBarWidth; ++i)
+    for (int i = 0; i < pauseBarWidth; i++) {
       line[(rightBarX + i) ^ 2] = fg;
+    }
   }
+}
+
+inline __attribute__((always_inline))
+void VideoScanout::compositeFilter(uint8_t *dst, int width)
+{
+  uint8_t *LUT = m_compositeLUT;
+
+  // Logical pixel x = 0
+  // Physical layout uses x ^ 2
+  uint8_t raw0 = dst[0 ^ 2];
+  uint8_t prevRGB = raw0 & 0x3F; // extract RGB222 (6 bits)
+
+  // Logical pixel x = 1
+  uint8_t raw1 = dst[1 ^ 2];
+  uint8_t curRGB = raw1 & 0x3F;
+
+  // Initial rolling index: (prevRGB << 6) | curRGB
+  uint16_t idx = (prevRGB << 6) | curRGB;
+
+  // Process scanline starting at logical x = 1
+  for (int x = 1; x < width; ++x) {
+    int phys = x ^ 2;
+
+    uint8_t raw = dst[phys];
+
+    // Preserve sync signals (HSYNC + VSYNC)
+    uint8_t sync = raw & 0xC0;
+
+    // Lookup composite result using rolling index
+    uint8_t outRGB = LUT[idx];
+
+    // Write back filtered pixel
+    dst[phys] = sync | outRGB;
+
+    // Prepare next rolling index:
+    //   new idx = (currentRGB << 6) | nextRGB
+    uint8_t nextRGB = raw & 0x3F;
+    idx = ((idx & 0x3F) << 6) | nextRGB;
+  }
+}
+
+uint8_t VideoScanout::compositeRGB222_core(uint8_t curRGB, uint8_t prevRGB)
+{
+  // Extract RGB components (2 bits each)
+  uint8_t r  = (curRGB  >> 0) & 0x03;
+  uint8_t g  = (curRGB  >> 2) & 0x03;
+  uint8_t b  = (curRGB  >> 4) & 0x03;
+
+  uint8_t pr = (prevRGB >> 0) & 0x03;
+  uint8_t pg = (prevRGB >> 2) & 0x03;
+  uint8_t pb = (prevRGB >> 4) & 0x03;
+
+  // Approximate luminance (green has more weight)
+  uint8_t y  = (r + (g << 1) + b) >> 2;
+  uint8_t py = (pr + (pg << 1) + pb) >> 2;
+
+  // Low-pass filter on luminance
+  y = (y + py) >> 1;
+
+  // Stronger low-pass on chroma (color bleeding)
+  r = (r + pr) >> 1;
+  g = (3 * g + pg) >> 2;
+  b = (b + pb) >> 1;
+
+  // Re-inject luminance for brightness stability
+  r = (r + y) >> 1;
+  g = (g + y) >> 1;
+  b = (b + y) >> 1;
+
+  // Repack RGB222 (no sync bits)
+  return (b << 4) | (g << 2) | r;
 }
 
 } // end of namespace

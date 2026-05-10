@@ -282,7 +282,6 @@ void Settings::mount_disk_image(const int index, char *filename)
 
   m_osd->frame(25, 9, 30, 5, Lang::get(Lang::Msg::TitleUncompressing),
                false, COL_WHITE, COL_CYAN, true, true);
-
   m_osd->progress(27, 11, 26, 0, "", true);
 
   sprintf(filepath, "%s%s/tmpfs%d.img", SD_MOUNT_PATH, cfg.media_path, index);
@@ -291,31 +290,52 @@ void Settings::mount_disk_image(const int index, char *filename)
   ret = vfs_fat_create_image(filepath, FAT_MOUNT_PATH, floppy);
   if (ret == VFS_FAT_OK) {
 
+printf("pipo\n");
     // Unzip file disk
     sprintf(filepath, "%s%s/%s", SD_MOUNT_PATH, cfg.disks_path, filename);
-    unzip_file_to_path(filepath, FAT_MOUNT_PATH, update_progress_callback, this);
+    ret = unzip_file_to_path(filepath, FAT_MOUNT_PATH, update_progress_callback, this);
+    if (ret == UNZIP_OK) {
 
-    // Umount file image
-    vfs_fat_unmount_image(FAT_MOUNT_PATH);
-  }
+      // Umount file image
+      vfs_fat_unmount_image(FAT_MOUNT_PATH);
 
-  m_osd->frame(28, 8, 24, 8, Lang::get(Lang::Msg::TitleFinished),
-               true, COL_WHITE, COL_CYAN, true, true);
+      // Show message when finished
+      m_osd->frame(28, 8, 24, 8, Lang::get(Lang::Msg::TitleFinished),
+                  true, COL_WHITE, COL_CYAN, true, true);
+      m_osd->text(30, 10, Lang::get(Lang::Msg::MsgUncompressed),
+                  COL_WHITE, COL_CYAN);
 
-  m_osd->text(30, 10, Lang::get(Lang::Msg::MsgUncompressed),
-              COL_WHITE, COL_CYAN);
+      ret = m_osd->menuBar(31, 13, 0, "Ok;Cancel", COL_CYAN);
+      if (ret == 0) {
+        sprintf(filepath, "tmpfs%d.img", index);
 
-  ret = m_osd->menuBar(31, 13, 0, "Ok;Cancel", COL_CYAN);
-  if (ret == 0) {
-    sprintf(filepath, "tmpfs%d.img", index);
-
-    if (floppy) {
-      // After mounting a floppy image, the OSD closes and returns to the emulation
-      m_computer->setDriveImage(index, filepath);
+        if (floppy) {
+          // After mounting a floppy image, the OSD closes and returns to the emulation
+          m_computer->setDriveImage(index, filepath);
+        } else {
+          // Mounting a hard disk image will automatically trigger a system reboot to apply the changes
+          m_computer->setDriveImage(index, filepath, 0, 0, 0);
+          m_computer->reboot();
+        }
+      }
     } else {
-      // Mounting a hard disk image will automatically trigger a system reboot to apply the changes
-      m_computer->setDriveImage(index, filepath, 0, 0, 0);
-      m_computer->reboot();
+
+      // Show error message
+      m_osd->frame(24, 8, 32, 8, Lang::get(Lang::Msg::TitleWarning),
+                  true, COL_WHITE, COL_RED, true, true);
+      m_osd->text(26, 10, Lang::get(Lang::Msg::MsgUncompressFail),
+                  COL_WHITE, COL_RED);
+
+      m_osd->menuBar(37, 13, 0, "Ok", COL_RED);
     }
+  } else {
+
+    // Show error message
+    m_osd->frame(24, 8, 32, 8, Lang::get(Lang::Msg::TitleWarning),
+                true, COL_WHITE, COL_RED, true, true);
+    m_osd->text(26, 10, Lang::get(Lang::Msg::MsgUncompressFail),
+                COL_WHITE, COL_RED);
+
+    m_osd->menuBar(37, 13, 0, "Ok", COL_RED);
   }
 }

@@ -133,6 +133,8 @@ public:
   bool blinkEnabled() override { return isBit7Blinking(); }
   uint8_t colorPlaneEnable() override { return 0x0F; }
 
+  uint8_t charHeight() override { return (m_crtc[0x09] & 0x1F) + 1; }
+
   uint32_t renderStamp() { return m_stamp; }
 
 private:

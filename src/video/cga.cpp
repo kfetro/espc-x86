@@ -79,10 +79,7 @@ void CGA::reset()
 {
   m_video->stop();
 
-  // Initialize video card registers and state values
-  resetRegisters();
-
-  // Set video mode and clear screen
+  // Set video mode and reset registers and state values
   setMode(CGA_MODE_TEXT_80x25_16COLORS);
 
   // Update BIOS Data Area
@@ -94,39 +91,97 @@ void CGA::reset()
 
 void CGA::resetRegisters()
 {
-  // Clear CRTC Registers
-  memset(m_crtc, 0, sizeof(m_crtc));
+  // Default CRTC tables
+  const uint8_t crtc_40x25[0x12] = {
+    0x38, 0x28, 0x2D, 0x0A, 0x1F, 0x06, 0x19, 0x1C,
+    0x02, 0x07, 0x06, 0x07, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00
+  };
+
+  const uint8_t crtc_80x25[0x12] = {
+    0x71, 0x50, 0x5A, 0x0A, 0x1F, 0x06, 0x19, 0x1C,
+    0x02, 0x07, 0x06, 0x07, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00
+  };
+
+  const uint8_t crtc_320x200[0x12] = {
+    0x38, 0x28, 0x2D, 0x0A, 0x7F, 0x06, 0x19, 0x70,
+    0x02, 0x01, 0x06, 0x07, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00
+  };
+
+  const uint8_t crtc_640x200[0x12] = {
+    0x71, 0x50, 0x5A, 0x0A, 0x7F, 0x06, 0x19, 0x70,
+    0x02, 0x01, 0x06, 0x07, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00
+  };
+
+  // Clear CRTC Registers and load defaults
+  switch (m_currentMode) {
+    case CGA_MODE_TEXT_40x25_16COLORS:
+    case CGA_MODE_TEXT_40x25_16COLORS_ALT:
+      memcpy(m_crtc, crtc_40x25, sizeof(m_crtc));
+      // Default mode control and color set (40x25 text, blinking enabled)
+      m_modeControl = CGA_MC_ENABLED |
+                      CGA_MC_BIT7BLINK;
+      break;
+
+    case CGA_MODE_TEXT_80x25_16COLORS:
+    case CGA_MODE_TEXT_80x25_16COLORS_ALT:
+    case MDA_MODE_TEXT_80x25_MONO:
+      memcpy(m_crtc, crtc_80x25, sizeof(m_crtc));
+      // Default mode control and color set (40x25 text, blinking enabled)
+      m_modeControl = CGA_MC_ENABLED |
+                      CGA_MC_TEXT80COLS |
+                      CGA_MC_BIT7BLINK;
+      break;
+
+    case CGA_MODE_GFX_320x200_4COLORS:
+    case CGA_MODE_GFX_320x200_4COLORS_ALT:
+      memcpy(m_crtc, crtc_320x200, sizeof(m_crtc));
+      // Default mode control and color set
+      m_modeControl = CGA_MC_ENABLED |
+                      CGA_MC_GRAPHICS |
+                      CGA_MC_BIT7BLINK;
+      break;
+
+    case CGA_MODE_GFX_640x200_2COLORS:
+      memcpy(m_crtc, crtc_640x200, sizeof(m_crtc));
+      // Default mode control and color set
+      m_modeControl = CGA_MC_ENABLED |
+                      CGA_MC_GRAPHICS |
+                      CGA_MC_HIGHRES |
+                      CGA_MC_BIT7BLINK;
+      break;
+
+    default:
+      break;
+  }
   m_crtcIndex = 0;
 
-  // Default mode control and color set
-  m_modeControl = CGA_MC_ENABLED |
-                  CGA_MC_TEXT80COLS |
-                  CGA_MC_BIT7BLINK;
   m_colorSelect = CGA_DEFAULT_COLORSELECT;
 
   m_VSyncQuery = 0;
   m_startAddress = 0;
 
-  // Cursor Shape and Visible
-  m_cursorDisable = false;
-#if 0
-  m_cursorStart = 0x0D;
-  m_cursorEnd = 0x0F;
-#else
-  m_cursorStart = 0x06;
-  m_cursorEnd = 0x07;
-#endif
+  // Derived values from CRTC
+  m_visibleRows  = (m_crtc[0x06] & 0x3F) + 1;
+  m_charHeight   = (m_crtc[0x09] & 0x1F) + 1;
 
-  m_crtc[CGA_CRTC_CURSORSTART] = m_cursorStart | (m_cursorDisable ? 0x20 : 0x00);
-  m_crtc[CGA_CRTC_CURSOREND]   = m_cursorEnd;
+  // Cursor shape from CRTC
+  m_cursorStart   =  m_crtc[CGA_CRTC_CURSORSTART] & 0x1F;
+  m_cursorEnd     =  m_crtc[CGA_CRTC_CURSOREND]   & 0x1F;
+  m_cursorDisable = (m_crtc[CGA_CRTC_CURSORSTART] & 0x20) != 0;
 
   m_activePage = 0;
 
-  // Cursor Position
+  // Reset cursor positions for all pages
   for (int i = 0; i < 8; i++) {
     m_cursorRow[i] = 0;
     m_cursorCol[i] = 0;
   }
+
+  // No dirty flag reset needed here
 }
 
 // --- INT 10h ---
@@ -149,61 +204,18 @@ void CGA::handleInt10h()
       }
 
       if (mode == m_currentMode) {
+        m_video->pause(true);
+        resetRegisters();
         // Always clear screen
         clearScreen();
+        m_video->updateLUT();
+        m_video->pause(false);
         break; // Nothing to do
-      }
-
-      switch(mode) {
-
-        // Text Mode 40x25
-        case CGA_MODE_TEXT_40x25_16COLORS:
-        case CGA_MODE_TEXT_40x25_16COLORS_ALT:
-          m_modeControl = CGA_MC_ENABLED |
-                          CGA_MC_BIT7BLINK;
-          break;
-
-        // Text Mode 80x25
-        case CGA_MODE_TEXT_80x25_16COLORS:
-        case CGA_MODE_TEXT_80x25_16COLORS_ALT:
-        //case MDA_MODE_TEXT_80x25_MONO:
-          m_modeControl = CGA_MC_ENABLED |
-                          CGA_MC_TEXT80COLS |
-                          CGA_MC_BIT7BLINK;
-          break;
-
-         // Graphics Mode 320x200
-        case CGA_MODE_GFX_320x200_4COLORS:
-        case CGA_MODE_GFX_320x200_4COLORS_ALT:
-          m_modeControl = CGA_MC_ENABLED |
-                          CGA_MC_GRAPHICS |
-                          CGA_MC_BIT7BLINK;
-          break;
-
-        // Graphics Mode 640x200
-        case CGA_MODE_GFX_640x200_2COLORS:
-          m_modeControl = CGA_MC_ENABLED |
-                          CGA_MC_GRAPHICS |
-                          CGA_MC_HIGHRES |
-                          CGA_MC_BIT7BLINK;
-          break;
-
-        default:
-          printf("cga: Warning! Unexpected video mode (0x%02x)\n", mode);
-          return;
-      }
-      m_colorSelect = CGA_DEFAULT_COLORSELECT;
-
-      // Reset BIOS video state
-      m_activePage = 0;
-      m_startAddress = 0;
-      for (int p = 0; p < 8; p++) {
-        m_cursorRow[p] = 0;
-        m_cursorCol[p] = 0;
       }
 
       m_video->stop();
 
+      // Set mode and reset registers
       setMode(mode);
       // Always clear screen
       clearScreen();
@@ -283,7 +295,7 @@ void CGA::handleInt10h()
         printf("cga: Start address = 0x%04x (active page %d)\n", m_startAddress, m_activePage);
       }
 
-      const uint8_t addr_hi = (uint8_t) ((m_startAddress >> 8) & 0xFF);
+      const uint8_t addr_hi = (uint8_t) ((m_startAddress >> 8) & 0x3F);
       const uint8_t addr_lo = (uint8_t) ( m_startAddress       & 0xFF);
 
       // Update BDA
@@ -409,8 +421,10 @@ void CGA::handleInt10h()
         }
       }
       // Apply the new palette settings
+      //m_video->pause(true);
       m_video->updateLUT();
       m_video->setBorder(m_colorSelect & 0x0F);
+      //m_video->pause(false);
       break;
     }
 
@@ -532,8 +546,20 @@ uint8_t CGA::readPort(uint16_t port)
       //     | | | | | +----- [2] Light Pen Switch Status (0 = Pressed/Closed)
       //     | | | | +------- [3] Vertical Retrace (1 = In Progress)
       //     +-+-+-+--------- [4-7] Unused (Usually 1 on original CGA)
+#if 1
       m_VSyncQuery++;
-      return (m_VSyncQuery & 0x7) != 0 ? 0x09 : 0x00; // "not VSync" (0x00) every 7 queries
+      return (m_VSyncQuery & 0xF) != 0 ? 0x09 : 0x00; // "not VSync" (0x00) every 7 queries
+#else
+    {
+      bool vsyncActive = m_video->getVertRetrace();
+
+      uint8_t status = 0x00;
+      if (vsyncActive) {
+        status = 0x09;
+      }
+      return status;
+    }
+#endif
 
     default:
       printf("cga: Unhandled read (0x%04x)\n", port);
@@ -553,6 +579,7 @@ void CGA::writePort(uint16_t port, uint8_t value)
     // CRTC Data
     case CGA_PORT_CRTCDATA:
       m_crtc[m_crtcIndex] = value;
+      //printf("ctrc[0x%02x] = 0x%02x\n", m_crtcIndex, value);
       switch (m_crtcIndex) {
 
         // Hotizontal Total (in character clocks)
@@ -593,7 +620,7 @@ void CGA::writePort(uint16_t port, uint8_t value)
           // bit 7 6 5 4 3 2 1 0
           //     | +-+-+-+-+-+-+- [0-6] Number of rows displayed
           //     +--------------- [7] Reserved
-          m_rowsVisible = (value & 0x3F) + 1;
+          m_visibleRows = (value & 0x3F) + 1;
           break;
 
         // Vertical Sync Position (in character rows)
@@ -615,7 +642,7 @@ void CGA::writePort(uint16_t port, uint8_t value)
           // bit 7 6 5 4 3 2 1 0
           //     | | | +-+-+-+-+- [0-4] Maximum Scan Line Address
           //     +-+-+----------- [5-7] Unused (Reserved/Ignored)
-          m_charHeight = value & 0x1F;
+          m_charHeight = (value & 0x1F) + 1;
           break;
 
         // Cursor Start
@@ -624,7 +651,7 @@ void CGA::writePort(uint16_t port, uint8_t value)
           //     | | | +-+-+-+-+- [0-4] Starting scanline for cursor
           //     | +-+----------- [5-6] Cursor Mode (00=Normal, 01=Invisible, 10=Blink 1/16, 11=Blink 1/32)
           //     +--------------- [7] Reserved
-          m_cursorStart = value & 0x1F;
+          m_cursorStart   =  value & 0x1F;
           m_cursorDisable = (value & 0x20) != 0;
           m_dirty = true;
           break;
@@ -645,12 +672,12 @@ void CGA::writePort(uint16_t port, uint8_t value)
           //     +-+------------- [6-7] Reserved
         case CGA_CRTC_STARTADDR_LO:
         {
-          const uint16_t addr_hi = (uint16_t) m_crtc[CGA_CRTC_STARTADDR_HI] << 8;
-          const uint16_t addr_lo = (uint16_t) m_crtc[CGA_CRTC_STARTADDR_LO];
+          const uint16_t addr_hi = (uint16_t) (m_crtc[CGA_CRTC_STARTADDR_HI] & 0x3F) << 8;
+          const uint16_t addr_lo = (uint16_t)  m_crtc[CGA_CRTC_STARTADDR_LO];
           const uint16_t oldAddr = m_startAddress;
           m_startAddress = addr_hi | addr_lo;
           if (m_startAddress != oldAddr) {
-            printf("cga: Start address = 0x%04x\n", m_startAddress);
+            //printf("cga: Start address = 0x%04x\n", m_startAddress);
           }
           m_dirty = true;
           break;
@@ -663,8 +690,8 @@ void CGA::writePort(uint16_t port, uint8_t value)
           //     +-+------------- [6-7] Reserved
         case CGA_CRTC_CURSORPOS_LO:
         {
-          const uint16_t pos_hi = (uint16_t) m_crtc[CGA_CRTC_CURSORPOS_HI] << 8;
-          const uint16_t pos_lo = (uint16_t) m_crtc[CGA_CRTC_CURSORPOS_LO];
+          const uint16_t pos_hi = (uint16_t) (m_crtc[CGA_CRTC_CURSORPOS_HI] & 0x3F) << 8;
+          const uint16_t pos_lo = (uint16_t)  m_crtc[CGA_CRTC_CURSORPOS_LO];
           // Note that (pos_hi | pos_lo) is the absolute cursor address (in chars)
           const uint16_t cursorPos = (pos_hi | pos_lo) - m_startAddress;
 
@@ -687,30 +714,58 @@ void CGA::writePort(uint16_t port, uint8_t value)
     // Mode Control Register
     case CGA_PORT_MODECTRL:
     {
+      // bit 7 6 5 4 3 2 1 0
+      //     | | | | | | | +- [0] Horizontal Resolution (Text Mode) (0=40, 1=80)
+      //     | | | | | | +--- [1] Graphics Mode Select (0=Text, 1=Graphics)
+      //     | | | | | +----- [2] Composite (0=Color, 1=B&W) (disable color burst)
+      //     | | | | +------- [3] Video Enable (0=Disable, 1=Enable)
+      //     | | | +--------- [4] Horizontal Resolution (Graphics Mode) (0=320x200, 1=640x200)
+      //     | | +----------- [5] Blink/Background Intensity Control (0=Enabled, 1=Disabled)
+      //     +-+------------- [6,7] Reserved
       uint8_t mode;
 
+      printf("cga: Mode control = 0x%02x\n", value);
       m_modeControl = value;
       if (isGraphicsMode()) {
         mode = isHighResolution() ? CGA_MODE_GFX_640x200_2COLORS
                                   : CGA_MODE_GFX_320x200_4COLORS;
+        printf("cga: Graphics mode + %s resolution\n", isHighResolution() ? "high" : "low");
       } else {
         mode = isText80Columns() ? CGA_MODE_TEXT_80x25_16COLORS
                                  : CGA_MODE_TEXT_40x25_16COLORS;
+        printf("cga: Text mode + %sx25\n", isText80Columns() ? "80" : "40");
       }
       if (mode != m_currentMode) {
+        printf("cga: New text mode\n");
         m_video->stop();
-        setMode(mode);
-        if (isVideoEnabled())
+        setMode(mode, false);
+        if (isVideoEnabled()) {
+          printf("cga: Video enabled\n");
           m_video->run();
+        } else {
+          printf("cga: Video NOT enabled!\n");
+        }
       }
       break;
     }
 
     // Color Select Register
     case CGA_PORT_COLORSEL:
+      // bit 7 6 5 4 3 2 1 0
+      //     | | | | | | | +- [0] Blue color component
+      //     | | | | | | +--- [1] Green color component
+      //     | | | | | +----- [2] Red color component
+      //     | | | | +------- [3] Intensity (brightness) flag
+      //     | | | +--------- [4] Palette Select (0=Green-Red-Brown, 1=Cyan-Magenta-White)
+      //     | | +----------- [5] Intensity Select (0=normal, 1=high intensity)
+      //     +-+------------- [6,7] Reserved
+      // Note: [4] and [5] only for 320x200 graphics
+      printf("cga: Color select = 0x%02x\n", value);
       m_colorSelect = value;
+      //m_video->pause(true);
       m_video->updateLUT();
       m_video->setBorder(m_colorSelect);
+      //m_video->pause(false);
       break;
 
     default:
@@ -751,9 +806,13 @@ void CGA::writeMem16(uint32_t physAddr, uint16_t value)
 
 // --- Helpers ---
 
-void CGA::setMode(uint8_t mode)
+void CGA::setMode(uint8_t mode, bool reset)
 {
   m_currentMode = mode;
+
+  if (reset)
+    resetRegisters();
+
   switch(m_currentMode) {
 
     case CGA_MODE_TEXT_40x25_16COLORS:

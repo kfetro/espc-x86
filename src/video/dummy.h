@@ -83,6 +83,8 @@ public:
   bool blinkEnabled() override { return false; }
   uint8_t colorPlaneEnable() override { return 0; }
 
+  uint8_t charHeight() override { return 7; }
+
   uint32_t renderStamp() { return m_stamp; }
 
 private:

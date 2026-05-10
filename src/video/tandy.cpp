@@ -316,7 +316,7 @@ void Tandy::handleInt10h()
         printf("tandy: Start address = 0x%04x (active page %d)\n", m_startAddress, m_activePage);
       }
 
-      const uint8_t addr_hi = (uint8_t) ((m_startAddress >> 8) & 0xFF);
+      const uint8_t addr_hi = (uint8_t) ((m_startAddress >> 8) & 0x3F);
       const uint8_t addr_lo = (uint8_t) ( m_startAddress       & 0xFF);
 
       // Update BDA
@@ -720,10 +720,13 @@ void Tandy::writePort(uint16_t port, uint8_t value)
 
         // Start Address High and Low
         case TGA_CRTC_STARTADDR_HI:
+          // bit 7 6 5 4 3 2 1 0
+          //     | | +-+-+-+-+-+- [0-5] Start address bits 8-13
+          //     +-+------------- [6-7] Reserved
         case TGA_CRTC_STARTADDR_LO:
         {
-          const uint16_t addr_hi = (uint16_t) m_crtc[TGA_CRTC_STARTADDR_HI] << 8;
-          const uint16_t addr_lo = (uint16_t) m_crtc[TGA_CRTC_STARTADDR_LO];
+          const uint16_t addr_hi = (uint16_t) (m_crtc[TGA_CRTC_STARTADDR_HI] & 0x3F) << 8;
+          const uint16_t addr_lo = (uint16_t)  m_crtc[TGA_CRTC_STARTADDR_LO];
           const uint16_t oldAddr = m_startAddress;
           m_startAddress = addr_hi | addr_lo;
           if (m_startAddress != oldAddr) {

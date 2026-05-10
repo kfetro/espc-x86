@@ -275,7 +275,12 @@ void sysreq_callback(uint8_t reqId)
 
     // Snapshot
     case 8:
-      computer->video_snapshot(SETUP_SNAPHOTS_PATH);
+      computer->video_screenshot(SETUP_SNAPHOTS_PATH);
+      break;
+
+    // Composite Monitor
+    case 9:
+      computer->toggleCompositeMonitor();
       break;
 
     // Hard reset

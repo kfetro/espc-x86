@@ -62,9 +62,6 @@ namespace video {
 class ScanoutContext;
 class VideoScanout;
 
-void drawOSDVolume(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
-void drawOSDPause(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
-
 // Video Digital-to-Analog Converter (DAC)
 class VideoScanout {
 
@@ -88,10 +85,14 @@ public:
   void updateLUT();
   void setBorder(uint8_t color);
 
+  bool getVertRetrace() const { return m_vertRetrace; }
+
   // OSD
   void showVolume(uint8_t volume);
 
-  uint8_t *rawSnapshot(uint16_t *width, uint16_t *height);
+  uint8_t *rawScreenshot(uint16_t *width, uint16_t *height);
+
+  void toggleCompositeFilter();
 
 private:
 
@@ -108,6 +109,8 @@ private:
 
   volatile State m_state = State::Stopped;
 
+  volatile bool m_vertRetrace = false; // Vertical Retrace (VSync)
+
   uint8_t m_currentMode;
 
   uint32_t m_frameCounter;
@@ -117,19 +120,22 @@ private:
   uint8_t *m_cursorGlyph;
 
   // OSD: speaker volume indicator
-  bool m_OSD_showVolume;
+  volatile bool m_OSD_showVolume;
   uint8_t m_OSD_rawPixelBg;
   uint8_t m_OSD_rawPixelFgH;
   uint8_t m_OSD_rawPixelFgL;
   uint8_t m_OSD_volumeLevel; // 0..127
   uint32_t m_OSD_frame;      // frame when OSD was triggered
 
+  volatile bool m_compositeMonitor;
+  uint8_t *m_compositeLUT;
+
   DrawScanlineCallback m_callback;
   int m_scanLines; // Number of scan lines per callback
   char const *m_modeLine;
 
-  int  m_width;
-  int  m_height;
+  int m_width;
+  int m_height;
 
   ScanoutContext *m_context;
 
@@ -137,6 +143,9 @@ private:
   uint8_t *m_vram;     // Linear (CGA)
   uint8_t *m_plane[4]; // Planar (EGA)
   uint32_t m_vramSize;
+
+  uint8_t m_charHeight = 8;
+  uint8_t m_visibleRows;
 
   uint32_t m_startAddress;
   uint16_t m_textPageSize;
@@ -173,8 +182,11 @@ private:
   static void drawScanline_ega_640x350x16(void *ctx, uint8_t *dst, int scanLine);
   static void drawScanline_mcga_320x200x256(void *ctx, uint8_t *dst, int scanLine);
 
-  friend void drawOSDVolume(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
-  friend void drawOSDPause(VideoScanout *device, int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
+  void drawOSDVolume(int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
+  void drawOSDPause(int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
+
+  void compositeFilter(uint8_t *dst, int width);
+  static uint8_t compositeRGB222_core(uint8_t curRGB, uint8_t prevRGB);
 };
 
 } // end of namespace

@@ -73,7 +73,7 @@ int sdcard_mount(const char *mount_point)
 
   esp_vfs_fat_sdmmc_mount_config_t mount_config = {};
   mount_config.format_if_mount_failed = false;
-  mount_config.max_files = 5;
+  mount_config.max_files = 8;
   mount_config.allocation_unit_size = ALLOCATION_UNIT_SIZE;
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)

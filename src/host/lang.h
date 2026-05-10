@@ -40,7 +40,9 @@ enum class Msg : uint16_t {
   MenuDiskImage,
   TitleUncompressing,
   TitleFinished,
+  TitleWarning,
   MsgUncompressed,
+  MsgUncompressFail,
   MsgSaveAndReset
 };
 

@@ -42,7 +42,9 @@ static const char *const strings_en[] = {
   "Select disk image",
   "Uncompressing disk...",
   "Finished",
+  "Warning",
   "File uncompressed\nReturn to emulation?",
+  "Failed to uncompress disk!",
   "Save configuration and reset?"
 };
 
@@ -65,7 +67,9 @@ static const char *const strings_es[] = {
   "Seleccione un disco de imagen",
   "Descomprimiento disco...",
   "Finalizado",
+  "Aviso",
   "Fichero descomprimido\n¿Regresar a la emulación?",
+  "Error al descomprimir disco!",
   "¿Guardar la configuración y reiniciar?"
 };
 

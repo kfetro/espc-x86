@@ -41,47 +41,47 @@
  */
 
 // Video Memory
-#define CGA_VRAM_SIZE 16384
+#define CGA_VRAM_SIZE           16384
 
-#define CGA_VRAM_BASE  0xB8000
-#define CGA_VRAM_LIMIT 0xBBFFF // base + size - 1
+#define CGA_VRAM_BASE         0xB8000
+#define CGA_VRAM_LIMIT        0xBBFFF // base + size - 1
 
 // IO Ports
-#define CGA_PORT_CRTCIDX   0x03D4
-#define CGA_PORT_CRTCDATA  0x03D5
-#define CGA_PORT_MODECTRL  0x03D8
-#define CGA_PORT_COLORSEL  0x03D9
-#define CGA_PORT_STATUS    0x03DA
+#define CGA_PORT_CRTCIDX       0x03D4
+#define CGA_PORT_CRTCDATA      0x03D5
+#define CGA_PORT_MODECTRL      0x03D8
+#define CGA_PORT_COLORSEL      0x03D9
+#define CGA_PORT_STATUS        0x03DA
 
 // CRTC (Cathode Ray Tube Controller) Registers
-#define CGA_CRTC_CURSORSTART   0x0A
-#define CGA_CRTC_CURSOREND     0x0B
-#define CGA_CRTC_STARTADDR_HI  0x0C
-#define CGA_CRTC_STARTADDR_LO  0x0D
-#define CGA_CRTC_CURSORPOS_HI  0x0E
-#define CGA_CRTC_CURSORPOS_LO  0x0F
+#define CGA_CRTC_CURSORSTART     0x0A
+#define CGA_CRTC_CURSOREND       0x0B
+#define CGA_CRTC_STARTADDR_HI    0x0C
+#define CGA_CRTC_STARTADDR_LO    0x0D
+#define CGA_CRTC_CURSORPOS_HI    0x0E
+#define CGA_CRTC_CURSORPOS_LO    0x0F
 
 // --- Mode Control Register ---
 
 // Selects 40/80 columns (0=40 cols, 1=80 cols)
-#define CGA_MC_TEXT80COLS  0x01
+#define CGA_MC_TEXT80COLS        0x01
 
 // Selects Graphics Mode (0=Text Mode, 1=Graphics Mode)
-#define CGA_MC_GRAPHICS    0x02
+#define CGA_MC_GRAPHICS          0x02
 
 // Selects Monochrome Mode (0=Color, 1=Monochrome)
-#define CGA_MC_MONOCHROME  0x04
+#define CGA_MC_MONOCHROME        0x04
 
 // Enables Video Signal (0=Disable, 1=Enable)
-#define CGA_MC_ENABLED     0x08
+#define CGA_MC_ENABLED           0x08
 
 // Selects 320x200 graphics (0=320x200, 1=640x200)
-#define CGA_MC_HIGHRES     0x10
+#define CGA_MC_HIGHRES           0x10
 
 // Blinking Enabled (0=Disabled, 1=Enabled)
 // 0 = text mode bit 7 controls background
 // 1 = text mode bit 7 controls blinking
-#define CGA_MC_BIT7BLINK   0x20
+#define CGA_MC_BIT7BLINK         0x20
 
 // --- Color Select Register ---
 
@@ -92,15 +92,15 @@
 
 // Mask for background color index (on 320x200 mode)
 // of foreground color (on 640x200)
-#define CGA_CS_COLOR_MASK     0x0F
+#define CGA_CS_COLOR_MASK        0x0F
 
 // Select high intensity colors
-#define CGA_CS_HIGHINTENSITY  0x10
+#define CGA_CS_HIGHINTENSITY     0x10
 
 // Palette Selection
 // 0 is Green, red and brown,
 // 1 is Cyan, magenta and white
-#define CGA_CS_PALETTESEL     0x20
+#define CGA_CS_PALETTESEL        0x20
 
 // Default value in CGA composite
 #define CGA_DEFAULT_COLORSELECT  0x30
@@ -159,11 +159,14 @@ public:
       else
         return CGA_paletteMap[paletteIndex()][index];
     } else {
-      return (index == 0) ? RGB222(0, 0, 0) : CGA_palette[colorSelect()];
+      return (index == 0) ? RGB222(0, 0, 0) : RGB222(2, 2, 2);//CGA_palette[colorSelect()];
     }
   }
   bool blinkEnabled() override { return isBit7Blinking(); }
   uint8_t colorPlaneEnable() override { return 1; }
+
+  uint8_t charHeight() override { return (m_crtc[0x09] & 0x1F) + 1; }
+  uint8_t getCRTC(uint8_t index) override { return m_crtc[index]; }
 
   uint32_t renderStamp() { return m_stamp; }
 
@@ -186,7 +189,7 @@ private:
 
   // totalScanlines = (verticalTotal + 1) * charHeight + verticalTotalAdjust
   // totalScanlines = (m_crtc[0x04] + 1) * m_crtc[0x09] + m_crtc[0x05]
-  uint8_t m_rowsVisible; // Number of visible rows
+  uint8_t m_visibleRows; // Number of visible rows
   uint8_t m_charHeight;  // Character height
   uint16_t m_VSyncQuery;
   uint16_t m_startAddress; // in words
@@ -223,7 +226,7 @@ private:
 
   void resetRegisters();
 
-  void setMode(uint8_t mode);
+  void setMode(uint8_t mode, bool reset = true);
 
   // Mode Control
   inline bool isText80Columns()  const { return (m_modeControl & CGA_MC_TEXT80COLS) != 0; }

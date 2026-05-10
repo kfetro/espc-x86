@@ -65,6 +65,11 @@ public:
 
   virtual uint8_t colorPlaneEnable() = 0;
 
+  virtual uint8_t charHeight() = 0;
+
+  //virtual uint8_t getCRTC(uint8_t index) = 0;
+  virtual uint8_t getCRTC(uint8_t index) { return 255; }
+
   // Incremented whenever scanout-relevant state changes
   virtual uint32_t renderStamp() = 0;
 };

@@ -116,6 +116,7 @@ The easiest way to install ESPC‑x86 is using the **online firmware flasher**.
 - **Ctrl+F5: Mute**
 - **Ctrl+F6 / F7: Volume Down/Up** (Displays an OSD level indicator in text mode)
 - **Ctrl+F8: Snapshot** (Snapshots are saved to the SD card root directory sequentially as `snapshot0.bmp`, `snapshot1.bmp`, ...)
+- **Ctrl+F9: Composite Monitor**
 - **Ctrl+F11: Hard Reset** (Physical reset button simulation)
 - **Ctrl+F12: Soft Reboot** (Warm boot / Ctrl+Alt+Del)
 

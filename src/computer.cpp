@@ -202,7 +202,7 @@ void Computer::init()
 
   // Start audio output (internal DAC / jack on TTGO VGA32)
   m_soundGen.play(true);
-  m_soundGen.setVolume(68); // 50%
+  m_soundGen.setVolume(34); // 25%
 
   m_DMA.init();
 
@@ -249,7 +249,8 @@ void Computer::init()
 
   setBaseDirectory(path);
   // Mount drives
-  //setDriveImage(0, "tmpfs0.img");
+  setDriveImage(0, "tmpfs0.img");
+  setDriveImage(1, "tmpfs1.img");
   setDriveImage(3, "tmpfs3.img");
   for (int i = 0; i < 4; i++) {
     if (cfg.drive[i][0] != 0) {
@@ -1175,7 +1176,8 @@ bool Computer::interrupt(void *context, int num)
       return false;
 
     // User defined
-    case 0x60 ... 0x66:
+    case 0x60 ... 0x6F:
+    case 0x78 ... 0xFF:
       return false;
 
     default:
@@ -1274,7 +1276,7 @@ void Computer::audio_volumeDown()
   printf("computer: Set volume = %d\n", vol);
 }
 
-void Computer::video_snapshot(const char *path)
+void Computer::video_screenshot(const char *path)
 {
   uint8_t *framebuffer;
   uint16_t width;
@@ -1282,7 +1284,7 @@ void Computer::video_snapshot(const char *path)
 
   pause();
 
-  framebuffer = m_video.rawSnapshot(&width, &height);
+  framebuffer = m_video.rawScreenshot(&width, &height);
 
   resume();
 
@@ -1290,6 +1292,11 @@ void Computer::video_snapshot(const char *path)
     int rc = snapshot(width, height, framebuffer, path);
     heap_caps_free((void *) framebuffer);
   }
+}
+
+void Computer::toggleCompositeMonitor()
+{
+  m_video.toggleCompositeMonitor();
 }
 
 void Computer::printEquipmentWord()

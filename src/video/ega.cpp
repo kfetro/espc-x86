@@ -1293,9 +1293,10 @@ void EGA::writePort(uint16_t port, uint8_t value)
 
     // CGA Color Select Register
     case EGA_CGA_PORT_COLORSEL:
-      printf("ega: color select (CGA-legacy)\n");
       m_cga_colorSelect = value;
+      m_video->pause(true);
       m_video->updateLUT();
+      m_video->pause(false);
       break;
 
     // Feature Control Register (color)
