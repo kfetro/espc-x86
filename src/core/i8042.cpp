@@ -381,50 +381,6 @@ void i8042::checkSysReq(int scode2)
 // Detect Ctrl+F1 .. Ctrl+F12 and forward them to the host
 void i8042::checkHostReq(int scode2)
 {
-/*
-  // MAKE: Ctrl pressed
-  if (scode2 == 0x14) {
-    m_ctrlDown = true;
-    return;
-  }
-
-  // BREAK handling
-  if (m_DBBOUT == 0xF0) {
-
-    // Ctrl released
-    if (scode2 == 0x14) {
-      m_ctrlDown = false;
-      return;
-    }
-
-    if (!m_ctrlDown || !m_hostReq)
-      return;
-
-    uint8_t reqId = 0;
-
-    switch (scode2) {
-      case 0x05: reqId = 1;  break; // F1
-      case 0x06: reqId = 2;  break; // F2
-      case 0x04: reqId = 3;  break; // F3
-      case 0x0C: reqId = 4;  break; // F4
-      case 0x03: reqId = 5;  break; // F5
-      case 0x0B: reqId = 6;  break; // F6
-      case 0x83: reqId = 7;  break; // F7
-      case 0x0A: reqId = 8;  break; // F8
-      case 0x01: reqId = 9;  break; // F9
-      case 0x09: reqId = 10; break; // F10
-      case 0x78: reqId = 11; break; // F11
-      case 0x07: reqId = 12; break; // F12
-      default:
-        return;
-    }
-
-    // Notify host
-    m_hostReq(m_context, reqId);
-    m_ctrlDown = false; 
-  }
-*/
-
   // Manage the physical state of the Ctrl key (Scancode 0x14)
   if (m_DBBOUT == 0xF0) {
     if (scode2 == 0x14) {
@@ -465,7 +421,6 @@ void i8042::checkHostReq(int scode2)
 
   // Notify the host immediately upon press
   m_hostReq(m_context, reqId);
-
 }
 #endif
 

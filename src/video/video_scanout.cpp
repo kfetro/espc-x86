@@ -1980,38 +1980,46 @@ void VideoScanout::compositeFilter(uint8_t *dst, int width)
 {
   uint8_t *LUT = m_compositeLUT;
 
-  // Logical pixel x = 0
-  // Physical layout uses x ^ 2
+  // Use black level before visible area
+  const uint8_t prevBlack = 0x00;
+
+  // Logical x = 0 (current pixel)
   uint8_t raw0 = dst[0 ^ 2];
-  uint8_t prevRGB = raw0 & 0x3F; // extract RGB222 (6 bits)
+  uint8_t curRGB = raw0 & 0x3F;
 
-  // Logical pixel x = 1
-  uint8_t raw1 = dst[1 ^ 2];
-  uint8_t curRGB = raw1 & 0x3F;
+  // Initial rolling index: BLACK -> P0
+  uint16_t idx = (prevBlack << 6) | curRGB;
 
-  // Initial rolling index: (prevRGB << 6) | curRGB
-  uint16_t idx = (prevRGB << 6) | curRGB;
+  // Process from logical x = 1
+  for (int x = 1; x < width; x++) {
+    int physPrev = (x - 1) ^ 2;
+    int physCur  = x ^ 2;
 
-  // Process scanline starting at logical x = 1
-  for (int x = 1; x < width; ++x) {
-    int phys = x ^ 2;
-
-    uint8_t raw = dst[phys];
-
-    // Preserve sync signals (HSYNC + VSYNC)
+    uint8_t raw = dst[physCur];
     uint8_t sync = raw & 0xC0;
-
-    // Lookup composite result using rolling index
-    uint8_t outRGB = LUT[idx];
-
-    // Write back filtered pixel
-    dst[phys] = sync | outRGB;
-
-    // Prepare next rolling index:
-    //   new idx = (currentRGB << 6) | nextRGB
     uint8_t nextRGB = raw & 0x3F;
+
+    // Write composite result one pixel to the left
+    dst[physPrev] = sync | LUT[idx];
+
+    // Advance rolling index
     idx = ((idx & 0x3F) << 6) | nextRGB;
   }
+
+#if 0
+  // Last pixel (logical width - 1):
+  // leave it as-is (no composite)
+#else
+  // Last pixel: composite with BLACK
+  int lastPhys = (width - 1) ^ 2;
+  uint8_t lastRaw = dst[lastPhys];
+
+  uint8_t lastSync = lastRaw & 0xC0;
+  uint8_t lastRGB  = lastRaw & 0x3F;
+
+  uint16_t lastIdx = (lastRGB << 6) | 0x00;
+  dst[lastPhys] = lastSync | LUT[lastIdx];
+#endif
 }
 
 uint8_t VideoScanout::compositeRGB222_core(uint8_t curRGB, uint8_t prevRGB)
