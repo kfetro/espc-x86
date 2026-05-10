@@ -200,7 +200,7 @@ private:
 
   void resetRegisters();
 
-  void setMode(uint8_t mode);
+  void setMode(uint8_t mode, bool reset = true);
 
   // Mode Control
   inline bool isText80Columns()  const { return (m_modeControl & TGA_MC_TEXT80COLS) != 0; }

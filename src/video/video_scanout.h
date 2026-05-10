@@ -182,6 +182,8 @@ private:
   static void drawScanline_ega_640x350x16(void *ctx, uint8_t *dst, int scanLine);
   static void drawScanline_mcga_320x200x256(void *ctx, uint8_t *dst, int scanLine);
 
+  // --- Helpers ---
+
   void drawOSDVolume(int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
   void drawOSDPause(int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
 

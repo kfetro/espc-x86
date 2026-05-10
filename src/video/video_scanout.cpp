@@ -1765,6 +1765,8 @@ void IRAM_ATTR VideoScanout::drawScanline_mcga_320x200x256(void *ctx, uint8_t *d
 #endif
 }
 
+// --- Helpers ---
+
 inline __attribute__((always_inline))
 void VideoScanout::drawOSDVolume(int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst)
 {

@@ -431,10 +431,10 @@ void CGA::handleInt10h()
         }
       }
       // Apply the new palette settings
-      //m_video->pause(true);
+      m_video->pause(true);
       m_video->updateLUT();
       m_video->setBorder(m_colorSelect & 0x0F);
-      //m_video->pause(false);
+      m_video->pause(false);
       break;
     }
 
@@ -687,7 +687,7 @@ void CGA::writePort(uint16_t port, uint8_t value)
           const uint16_t oldAddr = m_startAddress;
           m_startAddress = addr_hi | addr_lo;
           if (m_startAddress != oldAddr) {
-            //printf("cga: Start address = 0x%04x\n", m_startAddress);
+            printf("cga: Start address = 0x%04x\n", m_startAddress);
           }
           m_dirty = true;
           break;
@@ -772,10 +772,10 @@ void CGA::writePort(uint16_t port, uint8_t value)
       // Note: [4] and [5] only for 320x200 graphics
       printf("cga: Color select = 0x%02x\n", value);
       m_colorSelect = value;
-      //m_video->pause(true);
+      m_video->pause(true);
       m_video->updateLUT();
       m_video->setBorder(m_colorSelect);
-      //m_video->pause(false);
+      m_video->pause(false);
       break;
 
     default:

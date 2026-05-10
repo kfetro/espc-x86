@@ -103,41 +103,111 @@ void Tandy::reset()
 
 void Tandy::resetRegisters()
 {
-  // Clear CRTC Registers
-  memset(m_crtc, 0, sizeof(m_crtc));
+  // Default CRTC tables
+  const uint8_t crtc_40x25[0x12] = {
+    0x38, 0x28, 0x2D, 0x0A, 0x1F, 0x06, 0x19, 0x1C,
+    0x02, 0x07, 0x06, 0x07, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00
+  };
+
+  const uint8_t crtc_80x25[0x12] = {
+    0x71, 0x50, 0x5A, 0x0A, 0x1F, 0x06, 0x19, 0x1C,
+    0x02, 0x07, 0x06, 0x07, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00
+  };
+
+  const uint8_t crtc_320x200[0x12] = {
+    0x38, 0x28, 0x2D, 0x0A, 0x7F, 0x06, 0x19, 0x70,
+    0x02, 0x01, 0x06, 0x07, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00
+  };
+
+  const uint8_t crtc_640x200[0x12] = {
+    0x71, 0x50, 0x5A, 0x0A, 0x7F, 0x06, 0x19, 0x70,
+    0x02, 0x01, 0x06, 0x07, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00
+  };
+
+  // Clear CRTC Registers and load defaults
+  switch (m_currentMode) {
+    case CGA_MODE_TEXT_40x25_16COLORS:
+    case CGA_MODE_TEXT_40x25_16COLORS_ALT:
+      memcpy(m_crtc, crtc_40x25, sizeof(m_crtc));
+      // Default mode control and color set (40x25 text, blinking enabled)
+      m_modeControl = TGA_MC_ENABLED |
+                      TGA_MC_BIT7BLINK;
+      break;
+
+    case CGA_MODE_TEXT_80x25_16COLORS:
+    case CGA_MODE_TEXT_80x25_16COLORS_ALT:
+    case MDA_MODE_TEXT_80x25_MONO:
+      memcpy(m_crtc, crtc_80x25, sizeof(m_crtc));
+      // Default mode control and color set (40x25 text, blinking enabled)
+      m_modeControl = TGA_MC_ENABLED |
+                      TGA_MC_TEXT80COLS |
+                      TGA_MC_BIT7BLINK;
+      break;
+
+    case CGA_MODE_GFX_320x200_4COLORS:
+    case CGA_MODE_GFX_320x200_4COLORS_ALT:
+      memcpy(m_crtc, crtc_320x200, sizeof(m_crtc));
+      // Default mode control and color set
+      m_modeControl = TGA_MC_ENABLED |
+                      TGA_MC_GRAPHICS |
+                      TGA_MC_BIT7BLINK;
+      break;
+
+    case CGA_MODE_GFX_640x200_2COLORS:
+      memcpy(m_crtc, crtc_640x200, sizeof(m_crtc));
+      // Default mode control and color set
+      m_modeControl = TGA_MC_ENABLED |
+                      TGA_MC_GRAPHICS |
+                      TGA_MC_HIGHRES |
+                      TGA_MC_BIT7BLINK;
+      break;
+
+    case TGA_MODE_GFX_160x200_16COLORS:
+    case TGA_MODE_GFX_320x200_16COLORS:
+      m_modeControl = TGA_MC_ENABLED |
+                      TGA_MC_TEXT80COLS |
+                      TGA_MC_BIT7BLINK;
+      m_graphicsColor = 0x0F; // white, BIOS default
+      break;
+
+   case TGA_MODE_GFX_640x200_4COLORS:
+      m_modeControl = TGA_MC_ENABLED |
+                      TGA_MC_GRAPHICS |
+                      TGA_MC_HIGHRES |
+                      TGA_MC_BIT7BLINK;
+      m_graphicsColor = 0x0F; // white, BIOS default
+      break;
+
+    default:
+      break;
+  }
   m_crtcIndex = 0;
 
-  // Default mode control and color set
-  m_modeControl = TGA_MC_ENABLED |
-                  TGA_MC_TEXT80COLS |
-                  TGA_MC_BIT7BLINK;
   m_colorSelect = TGA_DEFAULT_COLORSELECT;
 
   m_VSyncQuery = 0;
   m_startAddress = 0;
 
-  // Cursor Shape and Visible
-  m_cursorDisable = false;
-#if 0
-  m_cursorStart = 0x0D;
-  m_cursorEnd = 0x0F;
-#else
-  m_cursorStart = 0x06;
-  m_cursorEnd = 0x07;
-#endif
-
-  m_crtc[TGA_CRTC_CURSORSTART] = m_cursorStart | (m_cursorDisable ? 0x20 : 0x00);
-  m_crtc[TGA_CRTC_CURSOREND]   = m_cursorEnd;
+  // Cursor shape from CRTC
+  m_cursorStart   =  m_crtc[TGA_CRTC_CURSORSTART] & 0x1F;
+  m_cursorEnd     =  m_crtc[TGA_CRTC_CURSOREND]   & 0x1F;
+  m_cursorDisable = (m_crtc[TGA_CRTC_CURSORSTART] & 0x20) != 0;
 
   m_activePage = 0;
 
-  // Cursor Position
+  // Reset cursor positions for all pages
   for (int i = 0; i < 8; i++) {
     m_cursorRow[i] = 0;
     m_cursorCol[i] = 0;
   }
 
   m_graphicsColor = 0x0F; // white, BIOS default
+
+  // No dirty flag reset needed here
 }
 
 // --- INT 10h ---
@@ -165,87 +235,36 @@ void Tandy::handleInt10h()
       }
 
       if (videoMode == m_currentMode) {
+        // Pause the video card to reset registers,
+        // clear screen and update state
+        m_video->pause(true);
+
+        resetRegisters();
         if (cls)
           clearScreen();
-        break; // Nothing to do
+        // Update BIOS Data Area
+        s_ram[0x449] = m_currentMode;
+        syncBDA();
+
+        m_video->updateLUT();
+        m_video->pause(false);
+      } else {
+
+        // Stop the video card to run in a new mode 
+        m_video->stop();
+
+        // Set mode and reset registers
+        setMode(videoMode);
+        if (cls) {
+          clearScreen();
+        }
+
+        // Update BIOS Data Area
+        s_ram[0x449] = m_currentMode;
+        syncBDA();
+
+        m_video->run();
       }
-
-      switch (videoMode) {
-
-        // Text Mode 40x25
-        case CGA_MODE_TEXT_40x25_16COLORS:
-        case CGA_MODE_TEXT_40x25_16COLORS_ALT:
-          m_modeControl = TGA_MC_ENABLED |
-                          TGA_MC_BIT7BLINK;
-          break;
-
-        // Text Mode 80x25
-        case CGA_MODE_TEXT_80x25_16COLORS:
-        case CGA_MODE_TEXT_80x25_16COLORS_ALT:
-        //case MDA_MODE_TEXT_80x25_MONO:
-          m_modeControl = TGA_MC_ENABLED |
-                          TGA_MC_TEXT80COLS |
-                          TGA_MC_BIT7BLINK;
-          break;
-
-         // Graphics Mode 320x200
-        case CGA_MODE_GFX_320x200_4COLORS:
-        case CGA_MODE_GFX_320x200_4COLORS_ALT:
-          m_modeControl = TGA_MC_ENABLED |
-                          TGA_MC_GRAPHICS |
-                          TGA_MC_BIT7BLINK;
-          break;
-
-        // Graphics Mode 640x200
-        case CGA_MODE_GFX_640x200_2COLORS:
-          m_modeControl = TGA_MC_ENABLED |
-                          TGA_MC_GRAPHICS |
-                          TGA_MC_HIGHRES |
-                          TGA_MC_BIT7BLINK;
-          break;
-
-        case TGA_MODE_GFX_160x200_16COLORS:
-        case TGA_MODE_GFX_320x200_16COLORS:
-          m_modeControl = TGA_MC_ENABLED |
-                          TGA_MC_TEXT80COLS |
-                          TGA_MC_BIT7BLINK;
-          m_graphicsColor = 0x0F; // white, BIOS default
-          break;
-
-        case TGA_MODE_GFX_640x200_4COLORS:
-          m_modeControl = TGA_MC_ENABLED |
-                          TGA_MC_GRAPHICS |
-                          TGA_MC_HIGHRES |
-                          TGA_MC_BIT7BLINK;
-          m_graphicsColor = 0x0F; // white, BIOS default
-          break;
-
-        default:
-          printf("tandy: Warning! Unexpected video mode (0x%02x)\n", videoMode);
-          return;
-      }
-      m_colorSelect = TGA_DEFAULT_COLORSELECT;
-
-      // Reset BIOS video state
-      m_activePage = 0;
-      m_startAddress = 0;
-      for (int p = 0; p < 8; p++) {
-        m_cursorRow[p] = 0;
-        m_cursorCol[p] = 0;
-      }
-
-      m_video->stop();
-
-      setMode(videoMode);
-      if (cls) {
-        clearScreen();
-      }
-
-      // Update BIOS Data Area
-      s_ram[0x449] = m_currentMode;
-      syncBDA();
-
-      m_video->run();
       break;
     }
 
@@ -443,7 +462,10 @@ void Tandy::handleInt10h()
         }
       }
       // Apply the new palette settings
-      //TODO m_video->updateLUT();
+      m_video->pause(true);
+      m_video->updateLUT();
+      m_video->setBorder(m_colorSelect & 0x0F);
+      m_video->pause(false);
       break;
     }
     
@@ -670,12 +692,26 @@ uint8_t Tandy::readPort(uint16_t port)
     // real vertical sync is too fast for our slowly emulated 8086, so
     // here it is just a fake, just to allow programs that check it to keep going anyway.
     case TGA_PORT_STATUS:
+      // bit 7 6 5 4 3 2 1 0
+      //     | | | | | | | +- [0] Display Enable (1 = Blanking, 0 = Active)
+      //     | | | | | | +--- [1] Light Pen Trigger Set (1 = Triggered)
+      //     | | | | | +----- [2] Light Pen Switch Status (0 = Pressed/Closed)
+      //     | | | | +------- [3] Vertical Retrace (1 = In Progress)
+      //     +-+-+-+--------- [4-7] Unused (Usually 1 on original CGA)
+#if 1
       m_VSyncQuery++;
       return (m_VSyncQuery & 0x7) != 0 ? 0x09 : 0x00; // "not VSync" (0x00) every 7 queries
-      //TODO
-      // Sincronizar con el render (scanout) real, algo más fino:
-      // Bit 3 activo durante el VBlank real del VideoScanout
-      // Bit 3 inactivo el resto del frame
+#else
+    {
+      bool vsyncActive = m_video->getVertRetrace();
+
+      uint8_t status = 0x00;
+      if (vsyncActive) {
+        status = 0x09;
+      }
+      return status;
+    }
+#endif
 
     default:
       printf("tandy: Unhandled read (0x%04x)\n", port);
@@ -704,8 +740,10 @@ void Tandy::writePort(uint16_t port, uint8_t value)
 
         // Cursor Start
         case TGA_CRTC_CURSORSTART:
-          // bits 0..4 : Cursor start scanline
-          // bit  5    : Cursor disable
+          // bit 7 6 5 4 3 2 1 0
+          //     | | | +-+-+-+-+- [0-4] Starting scanline for cursor
+          //     | +-+----------- [5-6] Cursor Mode (00=Normal, 01=Invisible, 10=Blink 1/16, 11=Blink 1/32)
+          //     +--------------- [7] Reserved
           m_cursorStart = value & 0x1F;
           m_cursorDisable = (value & 0x20) != 0;
           m_dirty = true;
@@ -713,7 +751,9 @@ void Tandy::writePort(uint16_t port, uint8_t value)
 
         // Cursor End
         case TGA_CRTC_CURSOREND:
-          // bits 0..4 : Cursor end scanline
+          // bit 7 6 5 4 3 2 1 0
+          //     | | | +-+-+-+-+- [0-4] Ending scanline for cursor
+          //     +-+-+----------- [5-7] Reserved
           m_cursorEnd = value & 0x1F;
           m_dirty = true;
           break;
@@ -738,10 +778,13 @@ void Tandy::writePort(uint16_t port, uint8_t value)
 
         // Cursor Position High and Low
         case TGA_CRTC_CURSORPOS_HI:
+          // bit 7 6 5 4 3 2 1 0
+          //     | | +-+-+-+-+-+- [0-5] Cursor address bits 8-13
+          //     +-+------------- [6-7] Reserved
         case TGA_CRTC_CURSORPOS_LO:
         {
-          const uint16_t pos_hi = (uint16_t) m_crtc[TGA_CRTC_CURSORPOS_HI] << 8;
-          const uint16_t pos_lo = (uint16_t) m_crtc[TGA_CRTC_CURSORPOS_LO];
+          const uint16_t pos_hi = (uint16_t) (m_crtc[TGA_CRTC_CURSORPOS_HI] & 0x3F) << 8;
+          const uint16_t pos_lo = (uint16_t)  m_crtc[TGA_CRTC_CURSORPOS_LO];
           // Note that (pos_hi | pos_lo) is the absolute cursor address (in chars)
           const uint16_t cursorPos = (pos_hi | pos_lo) - m_startAddress;
 
@@ -750,6 +793,10 @@ void Tandy::writePort(uint16_t port, uint8_t value)
           m_dirty = true;
           break;
         }
+
+        case 0x10: // Light Pen High
+        case 0x11: // Light Pen Low
+          break;
 
         default:
           printf("tandy: Unhandled crtc[0x%02x]=0x%02x\n", m_crtcIndex, value);
@@ -760,6 +807,14 @@ void Tandy::writePort(uint16_t port, uint8_t value)
     // CGA Mode Control Register
     case TGA_PORT_MODECTRL:
     {
+      // bit 7 6 5 4 3 2 1 0
+      //     | | | | | | | +- [0] Horizontal Resolution (Text Mode) (0=40, 1=80)
+      //     | | | | | | +--- [1] Graphics Mode Select (0=Text, 1=Graphics)
+      //     | | | | | +----- [2] Composite (0=Color, 1=B&W) (disable color burst)
+      //     | | | | +------- [3] Video Enable (0=Disable, 1=Enable)
+      //     | | | +--------- [4] Horizontal Resolution (Graphics Mode) (0=320x200, 1=640x200)
+      //     | | +----------- [5] Blink/Background Intensity Control (0=Enabled, 1=Disabled)
+      //     +-+------------- [6,7] Reserved
       uint8_t mode;
 
       // Mode Control register always exists on Tandy
@@ -790,7 +845,7 @@ void Tandy::writePort(uint16_t port, uint8_t value)
       }
       if (mode != m_currentMode) {
         m_video->stop();
-        setMode(mode);
+        setMode(mode, false);
         if (isVideoEnabled())
           m_video->run();
       }
@@ -799,9 +854,21 @@ void Tandy::writePort(uint16_t port, uint8_t value)
 
     // CGA Color Select Register
     case TGA_PORT_COLORSEL:
+      // bit 7 6 5 4 3 2 1 0
+      //     | | | | | | | +- [0] Blue color component
+      //     | | | | | | +--- [1] Green color component
+      //     | | | | | +----- [2] Red color component
+      //     | | | | +------- [3] Intensity (brightness) flag
+      //     | | | +--------- [4] Palette Select (0=Green-Red-Brown, 1=Cyan-Magenta-White)
+      //     | | +----------- [5] Intensity Select (0=normal, 1=high intensity)
+      //     +-+------------- [6,7] Reserved
+      // Note: [4] and [5] only for 320x200 graphics
       printf("tandy: Color select register = 0x%02x\n", value);
       m_colorSelect = value;
+      m_video->pause(true);
       m_video->updateLUT();
+      m_video->setBorder(m_colorSelect);
+      m_video->pause(false);
       break;
 
     case 0x03DB: // Clear Light Pen Latch
@@ -913,9 +980,13 @@ void Tandy::writeMem16(uint32_t physAddr, uint16_t value)
 
 // --- Helpers ---
 
-void Tandy::setMode(uint8_t mode)
+void Tandy::setMode(uint8_t mode, bool reset)
 {
   m_currentMode = mode;
+
+  if (reset)
+    resetRegisters();
+
   switch(m_currentMode) {
 
     case CGA_MODE_TEXT_40x25_16COLORS:
@@ -972,12 +1043,12 @@ void Tandy::writePixel320x200x4(uint32_t x, uint32_t y, uint8_t value, bool xore
 {
   constexpr uint32_t rowLenBytes = 320 / 4;
 
-  uint32_t offset = (y >> 1) * rowLenBytes   // row
+  const uint32_t offset = (y >> 1) * rowLenBytes   // row
                   + (x >> 2)                 // col
                   + ((y & 1) ? CGA_VRAM_BANK_SIZE : 0);  // bank
 
-  uint32_t shift = 6 - (x & 3) * 2;
-  uint8_t mask = (0x3 << shift);
+  const uint32_t shift = 6 - (x & 3) * 2;
+  const uint8_t mask = (0x3 << shift);
 
   uint8_t &cell = m_vram[offset];
 
@@ -993,12 +1064,12 @@ void Tandy::writePixel640x200x2(uint32_t x, uint32_t y, bool on)
 {
   constexpr uint32_t rowLenBytes = 640 / 8;
 
-  uint32_t offset = (y >> 1) * rowLenBytes   // row
+  const uint32_t offset = (y >> 1) * rowLenBytes   // row
                   + (x >> 3)                 // col
                   + ((y & 1) ? CGA_VRAM_BANK_SIZE : 0);  // bank
 
-  uint8_t bit = 7 - (x & 7);
-  uint8_t mask = (1 << bit);
+  const uint8_t bit = 7 - (x & 7);
+  const uint8_t mask = (1 << bit);
 
   uint8_t &cell = m_vram[offset];
 
