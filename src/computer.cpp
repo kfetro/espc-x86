@@ -1284,7 +1284,7 @@ void Computer::video_screenshot(const char *path)
 
   pause();
 
-  framebuffer = m_video.rawScreenshot(&width, &height);
+  //framebuffer = m_video.rawScreenshot(&width, &height);
 
   resume();
 

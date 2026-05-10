@@ -871,11 +871,13 @@ void IRAM_ATTR VideoScanout::drawScanline_text_40x25(void *ctx, uint8_t *dst, in
 
   // Note that in CGA video cards page base (m_activePage * m_textPageSize)
   // and m_startAddress are the SAME offset
-  // const uint32_t pageBase = (uint32_t) output->m_activePage * output->m_textPageSize;
-  const uint32_t vramMask = output->m_vramSize - 1;
-  const uint32_t base = (output->m_startAddress << 1) & vramMask; // words to bytes
+  // const uint32_t base = (uint32_t) output->m_activePage * output->m_textPageSize;
+  const uint32_t base = (output->m_startAddress << 1) & 0x1FFF; // words to bytes
 
-  uint8_t *src = output->m_vram + base + (textRow * textCols * 2);
+  const uint32_t vramMask = output->m_vramSize - 1;
+  const uint32_t offset = base + (textRow * textCols * 2) & vramMask;
+
+  uint8_t *src = output->m_vram + offset;
   uint8_t *LUT = output->m_rawPixelLUT;
 
   bool showCursor = output->m_cursorEnabled && output->m_cursorRow == textRow && ((output->m_frameCounter & 0x1f) < 0xf);
@@ -1016,11 +1018,13 @@ void IRAM_ATTR VideoScanout::drawScanline_text_80x25(void *ctx, uint8_t *dst, in
 
   // Note that in CGA video cards page base (m_activePage * m_textPageSize)
   // and m_startAddress are the SAME offset
-  // const uint32_t pageBase = (uint32_t) output->m_activePage * output->m_textPageSize;
-  const uint32_t vramMask = output->m_vramSize - 1;
-  const uint32_t base = (output->m_startAddress << 1) & vramMask; // words to bytes
+  // const uint32_t base = (uint32_t) output->m_activePage * output->m_textPageSize;
+  const uint32_t base = (output->m_startAddress << 1) & 0x1FFF; // words to bytes
 
-  uint8_t *src = output->m_vram + base + (textRow * textCols * 2);
+  const uint32_t vramMask = output->m_vramSize - 1;
+  const uint32_t offset = base + (textRow * textCols * 2) & vramMask;
+
+  uint8_t *src = output->m_vram + offset;
   uint8_t *LUT = output->m_rawPixelLUT;
 
   bool showCursor = output->m_cursorEnabled && output->m_cursorRow == textRow && ((output->m_frameCounter & 0x1f) < 0xf);
@@ -1146,10 +1150,13 @@ void IRAM_ATTR VideoScanout::drawScanline_mda_80x25(void *ctx, uint8_t *dst, int
 
   // Note that in CGA video cards page base (m_activePage * m_textPageSize)
   // and m_startAddress are the SAME offset
-  // const uint32_t pageBase = (uint32_t) output->m_activePage * output->m_textPageSize;
-  uint32_t base = output->m_startAddress << 1; // words to bytes
+  // const uint32_t base = (uint32_t) output->m_activePage * output->m_textPageSize;
+  const uint32_t base = (output->m_startAddress << 1) & 0xFFF; // words to bytes
 
-  uint8_t *src = output->m_vram + base + (textRow * textCols * 2);
+  const uint32_t vramMask = output->m_vramSize - 1;
+  const uint32_t offset = base + (textRow * textCols * 2) & vramMask;
+
+  uint8_t *src = output->m_vram + offset;
   uint8_t *LUT = output->m_rawPixelLUT;
 
   bool showCursor = output->m_cursorEnabled && output->m_cursorRow == textRow && ((output->m_frameCounter & 0x1f) < 0xf);
@@ -1235,7 +1242,6 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_320x200x4(void *ctx, uint8_t *dst,
   constexpr int pixelsLine = 320;                    // Pixels per scan line (m_width)
   constexpr int pixelsByte = 4;                      // Pixels per byte
   constexpr int bytesLine = pixelsLine / pixelsByte; // Bytes per line
-  constexpr uint32_t vramMask = 0x3FFF;              // 16 KB = 0x3FFF
 
   auto output = (VideoScanout *) ctx;
 
@@ -1273,6 +1279,7 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_320x200x4(void *ctx, uint8_t *dst,
   const uint32_t bankOffset = (activeScanLine & 1) << 13; // 0x2000 if odd
   const uint32_t lineOffset = bytesLine * (activeScanLine >> 1);
 
+  const uint32_t vramMask = output->m_vramSize - 1;
   const uint32_t offset = (base + bankOffset + lineOffset) & vramMask;
 
   uint8_t *src = output->m_vram + offset;
@@ -1294,7 +1301,6 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_640x200x2(void *ctx, uint8_t *dst,
   constexpr int pixelsLine = 640;                    // Pixels per scanline (m_width)
   constexpr int pixelsByte = 8;                      // Pixels per byte
   constexpr int bytesLine = pixelsLine / pixelsByte; // Bytes per line
-  constexpr uint32_t vramMask = 0x3FFF;              // 16 KB = 0x3FFF
 
   auto output = (VideoScanout *) ctx;
 
@@ -1330,6 +1336,7 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_640x200x2(void *ctx, uint8_t *dst,
   const uint32_t bankOffset = (activeScanLine & 1) << 13; // 0x2000 if odd
   const uint32_t lineOffset = bytesLine * (activeScanLine >> 1);
 
+  const uint32_t vramMask = output->m_vramSize - 1;
   const uint32_t offset = (base + bankOffset + lineOffset) & vramMask;
 
   uint8_t *src = output->m_vram + offset;
@@ -1351,7 +1358,6 @@ void IRAM_ATTR VideoScanout::drawScanline_tandy_320x200x16(void *ctx, uint8_t *d
   constexpr int pixelsLine = 320;                    // Pixels per scan line (m_width)
   constexpr int pixelsByte = 2;                      // Pixels per byte
   constexpr int bytesLine = pixelsLine / pixelsByte; // Bytes per line
-  constexpr uint32_t vramMask = 0x7FFF;              // 32 KB - 1 (Tandy VRAM size)
 
   auto output = (VideoScanout *) ctx;
 
@@ -1363,6 +1369,7 @@ void IRAM_ATTR VideoScanout::drawScanline_tandy_320x200x16(void *ctx, uint8_t *d
     output->m_startAddress = adapter->startAddress();
   }
 
+  const uint32_t vramMask = output->m_vramSize - 1;
   const uint32_t base = (output->m_startAddress << 1) & vramMask; // words to bytes
 
   // Tandy 4‑bank interleaving
@@ -1414,7 +1421,6 @@ void IRAM_ATTR VideoScanout::drawScanline_tandy_640x200x4(void *ctx, uint8_t *ds
   constexpr int pixelsLine = 640;                    // Pixels per scan line (m_width)
   constexpr int pixelsByte = 4;                      // Pixels per byte
   constexpr int bytesLine = pixelsLine / pixelsByte; // Bytes per line
-  constexpr uint32_t vramMask = 0x7FFF;              // 32 KB - 1 (Tandy VRAM size)
 
   auto output = (VideoScanout *) ctx;
 
@@ -1426,6 +1432,7 @@ void IRAM_ATTR VideoScanout::drawScanline_tandy_640x200x4(void *ctx, uint8_t *ds
     output->m_startAddress = adapter->startAddress();
   }
 
+  const uint32_t vramMask = output->m_vramSize - 1;
   const uint32_t base = (output->m_startAddress << 1) & vramMask; // words to bytes
 
   // Tandy 4‑bank interleaving

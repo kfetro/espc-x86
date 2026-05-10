@@ -558,7 +558,7 @@ uint8_t CGA::readPort(uint16_t port)
       //     +-+-+-+--------- [4-7] Unused (Usually 1 on original CGA)
 #if 1
       m_VSyncQuery++;
-      return (m_VSyncQuery & 0xF) != 0 ? 0x09 : 0x00; // "not VSync" (0x00) every 7 queries
+      return (m_VSyncQuery & 0x7) != 0 ? 0x09 : 0x00; // "not VSync" (0x00) every 7 queries
 #else
     {
       bool vsyncActive = m_video->getVertRetrace();
