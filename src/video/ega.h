@@ -317,13 +317,8 @@ private:
   uint8_t  m_textCols;
   uint16_t m_textPageSize; // in bytes
 
-  // Default Text Attribute (foreground 0x0F / background 0xF0)
-  // Used in (INT 10h):
-  // (1) Clear screen
-  // (2) Scroll Up/Down (AH=06h / AH=07h) when no attribute is defined
-  // (3) Write character (AH=09h) when no attribute is defined
-  // (4) Teletype (AH=0Eh)
-  const uint8_t m_textAttr;//TODO(EGA?)
+  // Default Text Attribute
+  const uint8_t m_textAttr;
 
   bool m_dirty;
   uint32_t m_stamp;

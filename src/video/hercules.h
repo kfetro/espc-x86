@@ -167,6 +167,7 @@ private:
   uint8_t  m_textCols;
   uint16_t m_textPageSize; // in bytes
 
+  // Default Text Attribute
   const uint8_t m_textAttr;
 
   bool m_dirty;

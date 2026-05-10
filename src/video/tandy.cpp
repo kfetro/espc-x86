@@ -168,6 +168,7 @@ void Tandy::resetRegisters()
 
     case TGA_MODE_GFX_160x200_16COLORS:
     case TGA_MODE_GFX_320x200_16COLORS:
+      memcpy(m_crtc, crtc_320x200, sizeof(m_crtc));
       m_modeControl = TGA_MC_ENABLED |
                       TGA_MC_TEXT80COLS |
                       TGA_MC_BIT7BLINK;
@@ -175,6 +176,7 @@ void Tandy::resetRegisters()
       break;
 
    case TGA_MODE_GFX_640x200_4COLORS:
+      memcpy(m_crtc, crtc_640x200, sizeof(m_crtc));
       m_modeControl = TGA_MC_ENABLED |
                       TGA_MC_GRAPHICS |
                       TGA_MC_HIGHRES |

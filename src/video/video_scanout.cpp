@@ -1151,7 +1151,7 @@ void IRAM_ATTR VideoScanout::drawScanline_mda_80x25(void *ctx, uint8_t *dst, int
   // Note that in CGA video cards page base (m_activePage * m_textPageSize)
   // and m_startAddress are the SAME offset
   // const uint32_t base = (uint32_t) output->m_activePage * output->m_textPageSize;
-  const uint32_t base = (output->m_startAddress << 1) & 0xFFF; // words to bytes
+  const uint32_t base = (output->m_startAddress << 1) & 0x1FFF; // words to bytes
 
   const uint32_t vramMask = output->m_vramSize - 1;
   const uint32_t offset = base + (textRow * textCols * 2) & vramMask;

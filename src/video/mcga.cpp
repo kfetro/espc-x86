@@ -248,6 +248,13 @@ void MCGA::resetRegisters()
                       MCGA_MC_BIT7BLINK;
       break;
 
+    case MCGA_MODE_GFX_320x200_256COLORS:
+      memcpy(m_crtc, crtc_320x200, sizeof(m_crtc));
+      m_modeControl = MCGA_MC_ENABLED |
+                      MCGA_MC_GRAPHICS |
+                      MCGA_MC_BIT7BLINK;
+      break;
+
     default:
       break;
   }

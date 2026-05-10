@@ -141,7 +141,7 @@ private:
   uint8_t *m_vram; // Video Memory
 
   // CRTC Registers (Motorola 6845)
-  uint8_t m_crtc[0x20];
+  uint8_t m_crtc[0x12];
   uint8_t m_crtcIndex;
 
   uint8_t m_dacPalette[256][3]; 
@@ -186,7 +186,7 @@ private:
   uint8_t  m_textCols;
   uint16_t m_textPageSize; // in bytes
 
-  // Default Text Attribute (foreground 0x0F / background 0xF0)
+  // Default Text Attribute
   const uint8_t m_textAttr;
 
   bool m_dirty;
