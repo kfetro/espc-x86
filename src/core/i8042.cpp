@@ -364,20 +364,6 @@ bool i8042::trigMouseInterrupt()
   return m_commandByte & CMDBYTE_ENABLE_MOUSE_IRQ ? m_mouseInterrupt(m_context) : true;
 }
 
-#if 0
-// check if SysReq (ALT + PRINT SCREEN) has been released
-void i8042::checkSysReq(int scode2)
-{
-  if (m_DBBOUT == 0xf0) {
-    if (scode2 == 0x84) { // SysReq released?
-      m_sysReqTriggered = true;
-    } else if (m_sysReqTriggered && scode2 == 0x11) { // ALT released?
-      m_sysReqTriggered = false;
-      m_sysReq(m_context);
-    }
-  }
-}
-#else
 // Detect Ctrl+F1 .. Ctrl+F12 and forward them to the host
 void i8042::checkHostReq(int scode2)
 {
@@ -422,6 +408,5 @@ void i8042::checkHostReq(int scode2)
   // Notify the host immediately upon press
   m_hostReq(m_context, reqId);
 }
-#endif
 
 } // end of namespace

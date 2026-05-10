@@ -74,8 +74,8 @@ public:
   uint8_t read(int address);
   void write(int address, uint8_t value);
 
-  Keyboard * keyboard()  { return m_keyboard; }
-  Mouse * mouse()        { return m_mouse; }
+  Keyboard *keyboard() { return m_keyboard; }
+  Mouse    *mouse()    { return m_mouse; }
 
   void enableMouse(bool value);
 
@@ -97,7 +97,7 @@ private:
   InterruptCallback  m_reset;
 
   // Host request callback (Ctrl+Fx)
-  HostReqCallback m_hostReq;
+  HostReqCallback    m_hostReq;
 
   // Key state
   bool               m_ctrlDown = false;
