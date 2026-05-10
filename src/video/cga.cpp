@@ -204,27 +204,37 @@ void CGA::handleInt10h()
       }
 
       if (mode == m_currentMode) {
+
+        // Pause the video card to reset registers,
+        // clear screen and update state
         m_video->pause(true);
+
         resetRegisters();
         // Always clear screen
         clearScreen();
+
+        // Update BIOS Data Area
+        s_ram[0x449] = m_currentMode;
+        syncBDA();
+
         m_video->updateLUT();
         m_video->pause(false);
-        break; // Nothing to do
+      } else {
+
+        // Stop the video card to run in a new mode 
+        m_video->stop();
+
+        // Set mode and reset registers
+        setMode(mode);
+        // Always clear screen
+        clearScreen();
+
+        // Update BIOS Data Area
+        s_ram[0x449] = m_currentMode;
+        syncBDA();
+
+        m_video->run();
       }
-
-      m_video->stop();
-
-      // Set mode and reset registers
-      setMode(mode);
-      // Always clear screen
-      clearScreen();
-
-      // Update BIOS Data Area
-      s_ram[0x449] = m_currentMode;
-      syncBDA();
-
-      m_video->run();
       break;
     }
 
@@ -700,7 +710,7 @@ void CGA::writePort(uint16_t port, uint8_t value)
           m_dirty = true;
           break;
         }
-       
+
         case 0x10: // Light Pen High
         case 0x11: // Light Pen Low
           break;

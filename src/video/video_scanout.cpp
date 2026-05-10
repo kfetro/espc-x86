@@ -1265,7 +1265,7 @@ void IRAM_ATTR VideoScanout::drawScanline_cga_320x200x4(void *ctx, uint8_t *dst,
 
   // Ensure start address wraps within the 8 KB boundary (0x1FFF bytes)
   // CGA hardware does not allow the start address to cross or change banks
-  const uint32_t base = (output->m_startAddress << 1);// & 0x1FFF; // words to bytes
+  const uint32_t base = (output->m_startAddress << 1) & 0x1FFF; // words to bytes
 
   // CGA planar banking:
   // - even scanlines go to bank 0 (offset 0x0000)

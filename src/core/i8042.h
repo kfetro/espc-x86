@@ -100,7 +100,7 @@ private:
   HostReqCallback m_hostReq;
 
   // Key state
-  bool m_ctrlDown = false;
+  bool               m_ctrlDown = false;
 
   uint8_t            m_STATUS;
   uint8_t            m_DBBOUT;
@@ -117,8 +117,6 @@ private:
 
   int                m_mouseIntTrigs;
   int                m_keybIntTrigs;
-
-  bool               m_hostReqTriggered;
 };
 
 } // end of namespace

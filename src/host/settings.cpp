@@ -57,10 +57,8 @@ void Settings::show()
 
   m_osd->frame(0, 0, 80, 25, Lang::get(Lang::Msg::MenuTitle),
                true, COL_WHITE, COL_BLUE, false, false);
-
   m_osd->frame(8, 5, 64, 13, Lang::get(Lang::Msg::MenuSystemTitle),
                false, COL_WHITE, COL_CYAN, true, true);
-
   m_osd->text(33, 7, Lang::get(Lang::Msg::MenuSystemDescriptions),
               COL_WHITE, COL_CYAN);
 
@@ -127,16 +125,13 @@ void Settings::show()
     {
       m_osd->frame(22, 8, 35, 10, Lang::get(Lang::Msg::MenuSystemTitle),
                    false, COL_WHITE, COL_LIGHTGRAY, true, true);
-
       m_osd->frame(24, 10, 16, 4, "Floppy",
                    false, COL_YELLOW, COL_LIGHTGRAY, true, false);
-
       m_osd->text(26, 11, "3.5\" HD\n1440 KB",
                   COL_WHITE, COL_LIGHTGRAY);
 
       m_osd->frame(40, 10, 16, 4, "Hard disk",
                    false, COL_YELLOW, COL_LIGHTGRAY, true, false);
-
       m_osd->text(42, 11, "8 MB HDD", COL_WHITE, COL_LIGHTGRAY);
 
       int index = m_osd->menuBar(25, 15, 0, Lang::get(Lang::Msg::MenuDriveOptions), COL_LIGHTGRAY);
@@ -176,19 +171,16 @@ void Settings::mountFloppy()
 
   m_osd->frame(0, 0, 80, 25, Lang::get(Lang::Msg::MenuTitle),
                true, COL_WHITE, COL_BLUE, false, false);
-
   m_osd->frame(22, 8, 35, 10, Lang::get(Lang::Msg::MenuSystemTitle),
                 false, COL_WHITE, COL_LIGHTGRAY, true, true);
 
   m_osd->frame(24, 10, 16, 4, "Floppy",
                 false, COL_YELLOW, COL_LIGHTGRAY, true, false);
-
   m_osd->text(26, 11, "3.5\" HD\n1440 KB",
               COL_WHITE, COL_LIGHTGRAY);
 
   m_osd->frame(40, 10, 16, 4, "Hard disk",
                 false, COL_YELLOW, COL_LIGHTGRAY, true, false);
-
   m_osd->text(42, 11, "8 MB HDD", COL_WHITE, COL_LIGHTGRAY);
 
   int index = m_osd->menuBar(25, 15, 0, Lang::get(Lang::Msg::MenuDriveOptions), COL_LIGHTGRAY);
@@ -221,19 +213,16 @@ void Settings::mountHardDisk()
 
   m_osd->frame(0, 0, 80, 25, Lang::get(Lang::Msg::MenuTitle),
                true, COL_WHITE, COL_BLUE, false, false);
-
   m_osd->frame(22, 8, 35, 10, Lang::get(Lang::Msg::MenuSystemTitle),
                 false, COL_WHITE, COL_LIGHTGRAY, true, true);
 
   m_osd->frame(24, 10, 16, 4, "Floppy",
                 false, COL_YELLOW, COL_LIGHTGRAY, true, false);
-
   m_osd->text(26, 11, "3.5\" HD\n1440 KB",
               COL_WHITE, COL_LIGHTGRAY);
 
   m_osd->frame(40, 10, 16, 4, "Hard disk",
                 false, COL_YELLOW, COL_LIGHTGRAY, true, false);
-
   m_osd->text(42, 11, "8 MB HDD", COL_WHITE, COL_LIGHTGRAY);
 
   int index = m_osd->menuBar(25, 15, 0, Lang::get(Lang::Msg::MenuDriveOptions), COL_LIGHTGRAY);
@@ -290,7 +279,6 @@ void Settings::mount_disk_image(const int index, char *filename)
   ret = vfs_fat_create_image(filepath, FAT_MOUNT_PATH, floppy);
   if (ret == VFS_FAT_OK) {
 
-printf("pipo\n");
     // Unzip file disk
     sprintf(filepath, "%s%s/%s", SD_MOUNT_PATH, cfg.disks_path, filename);
     ret = unzip_file_to_path(filepath, FAT_MOUNT_PATH, update_progress_callback, this);
