@@ -308,24 +308,32 @@ void BIOS::handleInt15h()
 {
   uint8_t AH = i8086::AH();
 
-  switch (AH)
-  {
-    // Pointing Device (Mouse) interface - already implemented
+  printf("bios: int 15h AH=0x%02x\n", AH);
+
+  switch (AH) {
+
+    // Wait (Delay)
+    //case 0x00:
+
+    // Intercept Keyboard / InPort
+    //case 0x4F:
+
+    // Bus Mouse (ports 0x023?)
+    //case 0xC0:
+
+    // Pointing Device Interface
     case 0xC2:
       pointingDeviceInterface();
-      return;
+      break;
 
-    // Keyboard intercept - not implemented
-    case 0x4F:
-      i8086::setAH(0x80);    // 0x80 = error / unsupported
-      i8086::setFlagCF(1);
-      return;
+    // Joystick BIOS services
+    //case 0x84:
 
     // All other extended functions not implemented
     default:
-      i8086::setAH(0x86);    // 0x86 = "function not supported"
-      i8086::setFlagCF(1);
-      return;
+      i8086::setAH(0x86); // Function not supported
+      i8086::setFlagCF(true);
+      break;
   }
 }
 
@@ -440,7 +448,6 @@ bool BIOS::handleInt19h()
 // This implementation supports the most common functions
 // used by DOS during boot and runtime.
 // It uses the MC146818 RTC already present in FabGL.
-// =========================================================
 void BIOS::handleInt1Ah()
 {
   uint8_t AH = i8086::AH();
@@ -922,149 +929,90 @@ void BIOS::diskHandler_HDExit(uint8_t err, bool setErrStat)
     m_memory[BIOS_BDA_ADDR + BIOS_HDLASTSTATUS] = err;
 }
 
-// Implements all services of "INT 15 Function C2h"
-// inputs:
-//    AL : subfunction
-//    .. : depends by the subfunction
-// outputs:
-//    AH : 0 = success, >0 = error (see "INT 15h Function C2h - Pointing Device Interface")
-//    CF : 0 = successful, 1 = unsuccessful
-//    .. : depends by the subfunction
+// Implements all services of INT 15h service C2h
 void BIOS::pointingDeviceInterface()
 {
-  if (m_mouse->isMouseAvailable()) {
+  if (!m_mouse || !m_mouse->isMouseAvailable()) {
+    // Mouse not available
+    i8086::setAH(0x03); // Interface error
+    i8086::setFlagCF(true);
+    return;
+  }
 
-    i8086::setAH(0x00);
-    i8086::setFlagCF(0);
+  const uint8_t AL = i8086::AL();
+  switch (AL) {
 
-    switch (i8086::AL()) {
+    // Disable pointing device
+    case 0x00:
+      m_i8042->enableMouse(false);
+      i8086::setAH(0x00);
+      i8086::setFlagCF(false);
+      break;
 
-      // Enable/disable pointing device
-      // inputs:
-      //    AL : 0x00
-      //    BH : 0 = disable, 1 = enable
-      case 0x00:
-#if LEGACY_IBMPC_XT_8088
-        m_i8255->enableMouse(i8086::BH());
-#else
-        m_i8042->enableMouse(i8086::BH());
-#endif
-        break;
+    // Enable pointing device
+    case 0x01:
+      m_i8042->enableMouse(true);
+      i8086::setAH(0x00);
+      i8086::setFlagCF(false);
+      break;
 
-      // Reset pointing device
-      // inputs:
-      //    AL : 0x01
-      // outputs:
-      //    BH : Device ID
-      case 0x01:
-#if LEGACY_IBMPC_XT_8088
-        m_i8255->enableMouse(false);             // mouse disabled
-#else
-        m_i8042->enableMouse(false);             // mouse disabled
-#endif
-        m_mouse->setSampleRate(100);             // 100 reports/second
-        m_mouse->setResolution(2);               // 4 counts/millimeter
-        m_mouse->setScaling(1);                  // 1:1 scaling
-        i8086::setBH(m_mouse->deviceID() & 0xff);
-        break;
-
-      // Set sample rate
-      // inputs:
-      //    AL : 0x02
-      //    BH : Sample rate
-      case 0x02:
-        m_mouse->setSampleRate(i8086::BH());
-        break;
-
-      // Set resolution
-      // inputs:
-      //    AL : 0x03
-      //    BH : Resolution value
-      case 0x03:
-        m_mouse->setResolution(i8086::BH());
-        break;
-
-      // Read device type
-      // inputs:
-      //    AL : 0x04
-      case 0x04:
-        i8086::setBH(m_mouse->deviceID() & 0xff);
-        break;
-
-      // Initialize pointing device interface
-      // inputs:
-      //    AL : 0x05
-      //    BH : Data package size (1-8, in bytes)
-      //         note: this value is acqually ignored because we get actual packet size from Mouse object
-      case 0x05:
-      {
-#if LEGACY_IBMPC_XT_8088
-        m_i8255->enableMouse(false);              // mouse disabled
-#else
-        m_i8042->enableMouse(false);              // mouse disabled
-#endif
-        m_mouse->setSampleRate(100);              // 100 reports/second
-        m_mouse->setResolution(2);                // 4 counts/millimeter
-        m_mouse->setScaling(1);                   // 1:1 scaling
-        uint8_t * EBDA = m_memory + EBDA_ADDR;
-        EBDA[EBDA_DRIVER_OFFSET] = 0x0000;
-        EBDA[EBDA_DRIVER_SEG]    = 0x0000;
-        EBDA[EBDA_FLAGS1]        = 0x00;
-        EBDA[EBDA_FLAGS2]        = m_mouse->getPacketSize(); // instead of i8086::BH()!!
-        break;
-      }
-
-      // Set scaling or get status
-      // inputs:
-      //    AL : 0x06
-      //    BH : subfunction
-      case 0x06:
-        switch (i8086::BH()) {
-          // Set scaling factor to 1:1
-          // inputs:
-          //    BH : 0x01
-          case 0x01:
-            m_mouse->setScaling(1);
-            break;
-          // Set scaling factor to 2:1
-          // inputs:
-          //    BH : 0x02
-          case 0x02:
-            m_mouse->setScaling(2);
-            break;
-          default:
-            // not implements
-            printf("Pointing device function 06:%02X not implemented\n", i8086::BH());
-            i8086::setAH(0x86);
-            i8086::setFlagCF(1);
-            break;
-        }
-        break;
-
-      // Set pointing device handler address
-      // inputs:
-      //    AL = 0x07
-      //    ES:BX : Pointer to application-program's device driver
-      case 0x07:
-      {
-        uint8_t * EBDA = m_memory + EBDA_ADDR;
-        *(uint16_t *) (EBDA + EBDA_DRIVER_OFFSET) = i8086::BX();
-        *(uint16_t *) (EBDA + EBDA_DRIVER_SEG)    = i8086::ES();
-        EBDA[EBDA_FLAGS2] |= 0x80;  // set handler installed flag
-        break;
-      }
-
-      default:
-        // not implements
-        printf("Pointing device function %02X not implemented\n", i8086::AL());
-        i8086::setAH(0x86);
-        i8086::setFlagCF(1);
-        break;
+    // Set sample rate
+    case 0x02: {
+      const uint8_t rate = i8086::BH();
+      m_mouse->setSampleRate(rate);
+      i8086::setAH(0x00);
+      i8086::setFlagCF(false);
+      break;
     }
 
-  } else {
-    // mouse not available
-    i8086::setAH(0x03);   // 0x03 = interface error
-    i8086::setFlagCF(1);
+    // Set resolution
+    case 0x03: {
+      const uint8_t resolution = i8086::BH() & 0x03;
+      m_mouse->setResolution(resolution);
+      i8086::setAH(0x00);
+      i8086::setFlagCF(false);
+      break;
+    }
+
+    // Read pointing device status
+    case 0x04:
+      i8086::setBH(0x00);
+      i8086::setAH(0x00);
+      i8086::setFlagCF(0);
+      break;
+
+    // Initialize pointing device
+    case 0x05:
+    {
+      m_i8042->enableMouse(true);
+      // Standard IBM AT parameters
+      m_mouse->setSampleRate(100); // 100 Hz
+      m_mouse->setResolution(2);   // 4 counts/mm
+      m_mouse->setScaling(1);      // 1:1 scaling
+      i8086::setAH(0x00);
+      i8086::setBH(m_mouse->deviceID());
+      i8086::setFlagCF(false);
+      break;
+    }
+
+    // Set scaling or get status
+    case 0x06:
+      m_mouse->setScaling(i8086::BH() ? 2 : 1);
+      i8086::setAH(0x00);
+      i8086::setFlagCF(false);
+      break;
+
+    // Get device ID
+    case 0x07:
+      i8086::setAH(0x00);
+      i8086::setBH(m_mouse->deviceID());
+      i8086::setFlagCF(false);
+      break;
+
+    default:
+      printf("bios: Unhandled int 15h (AH=0xC2, AL=0x%02x)\n", AL);
+      i8086::setAH(0x01); // Invalid function
+      i8086::setFlagCF(true);
+      break;
   }
 }

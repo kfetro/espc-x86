@@ -81,17 +81,6 @@ constexpr int DISKCOUNT = 4;
 #define BIOS_KBDLEDS           0x97     // keyboard LEDs
 #define BIOS_PRINTSCREENFLAG   0x100    // PRINTSCREEN flag
 
-// Extended BIOS Data Area (EBDA)
-
-#define EBDA_SEG               0x9fc0   // EBDA Segment, must match with same value in bios.asm
-#define EBDA_ADDR              (EBDA_SEG << 4)
-
-#define EBDA_DRIVER_OFFSET     0x22     // Pointing device device driver far call offset
-#define EBDA_DRIVER_SEG        0x24     // Pointing device device driver far call segment
-#define EBDA_FLAGS1            0x26     // Flags 1 (bits 0-2: recv data index)
-#define EBDA_FLAGS2            0x27     // Flags 2 (bits 0-2: packet size, bit 7: device handler installed)
-#define EBDA_PACKET            0x28     // Start of packet
-
 using fabgl::PS2Controller;
 using fabgl::Keyboard;
 using fabgl::Mouse;

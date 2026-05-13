@@ -201,6 +201,7 @@ void Computer::init()
   }
 
   // Start audio output (internal DAC / jack on TTGO VGA32)
+  m_speakerDataEnable = false;
   m_soundGen.play(true);
   m_soundGen.setVolume(34); // 25%
 
@@ -600,6 +601,11 @@ void Computer::PIT_IRQ0(void *context, int timer, bool out)
   // A rising edge on OUT0 (when OUT0 transitions from 0 to 1) triggers IRQ0
   if ((timer == 0) && out) {
     m->m_PIC_master.signalInterrupt(0);
+  } else if (timer == 2) {
+    // Timer 2 output changed – update speaker level
+    // Speaker sounds only when data enable bit is 1 AND OUT2 is 1
+    //bool speakerActive = m->m_speakerDataEnable && out;
+    //m->m_waveGen.enable(speakerActive);
   }
 }
 
@@ -718,10 +724,12 @@ void Computer::writePort(void *context, int address, uint8_t value)
     {
       const bool gate = value & 0x01; // Bit 0 controls PIT Counter 2 Gate
       const bool out  = value & 0x02; // Bit 1 controls Speaker Data
+
       // Note: Bits 2-3 are for parity checks
       m->m_speakerDataEnable = out;
       m->m_PIT.setGate(2, gate);
       if (gate && out) {
+      //if (gate && out && m->m_PIT.getOut(2)) {
         m->m_waveGen.enable(true);
       } else {
         m->m_waveGen.enable(false);

@@ -81,14 +81,16 @@ SineWaveformGenerator::SineWaveformGenerator()
 {
 }
 
-void SineWaveformGenerator::setFrequency(int value) {
+void SineWaveformGenerator::setFrequency(int value)
+{
   if (m_frequency != value) {
     m_frequency = value;
     m_phaseInc = (((uint32_t)m_frequency * 256) << 11) / sampleRate();
   }
 }
 
-int SineWaveformGenerator::getSample() {
+int SineWaveformGenerator::getSample()
+{
   if (m_frequency == 0 || duration() == 0) {
     if (m_lastSample > 0)
       --m_lastSample;
@@ -130,7 +132,8 @@ SquareWaveformGenerator::SquareWaveformGenerator()
 {
 }
 
-void SquareWaveformGenerator::setFrequency(int value) {
+void SquareWaveformGenerator::setFrequency(int value)
+{
   if (m_frequency != value) {
     m_frequency = value;
     m_phaseInc = (((uint32_t)m_frequency * 256) << 11) / sampleRate();
@@ -143,7 +146,8 @@ void SquareWaveformGenerator::setDutyCycle(int dutyCycle)
   m_dutyCycle = dutyCycle;
 }
 
-int SquareWaveformGenerator::getSample() {
+int SquareWaveformGenerator::getSample()
+{
   if (m_frequency == 0 || duration() == 0) {
     if (m_lastSample > 0)
       --m_lastSample;
@@ -183,14 +187,16 @@ TriangleWaveformGenerator::TriangleWaveformGenerator()
 {
 }
 
-void TriangleWaveformGenerator::setFrequency(int value) {
+void TriangleWaveformGenerator::setFrequency(int value)
+{
   if (m_frequency != value) {
     m_frequency = value;
     m_phaseInc = (((uint32_t)m_frequency * 256) << 11) / sampleRate();
   }
 }
 
-int TriangleWaveformGenerator::getSample() {
+int TriangleWaveformGenerator::getSample()
+{
   if (m_frequency == 0 || duration() == 0) {
     if (m_lastSample > 0)
       --m_lastSample;
@@ -230,14 +236,16 @@ SawtoothWaveformGenerator::SawtoothWaveformGenerator()
 {
 }
 
-void SawtoothWaveformGenerator::setFrequency(int value) {
+void SawtoothWaveformGenerator::setFrequency(int value)
+{
   if (m_frequency != value) {
     m_frequency = value;
     m_phaseInc = (((uint32_t)m_frequency * 256) << 11) / sampleRate();
   }
 }
 
-int SawtoothWaveformGenerator::getSample() {
+int SawtoothWaveformGenerator::getSample()
+{
   if (m_frequency == 0 || duration() == 0) {
     if (m_lastSample > 0)
       --m_lastSample;
@@ -372,7 +380,7 @@ int VICNoiseGenerator::getSample()
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SamplesGenerator
 
-SamplesGenerator::SamplesGenerator(int8_t const * data, int length)
+SamplesGenerator::SamplesGenerator(int8_t const *data, int length)
   : m_data(data),
     m_length(length),
     m_index(0)
@@ -383,8 +391,8 @@ void SamplesGenerator::setFrequency(int value)
 {
 }
 
-int SamplesGenerator::getSample() {
-
+int SamplesGenerator::getSample()
+{
   if (duration() == 0) {
     return 0;
   }
@@ -455,7 +463,7 @@ void SoundGenerator::clear()
   m_channels = nullptr;
 }
 
-void SoundGenerator::setDMANode(int index, volatile uint16_t * buf, int len)
+void SoundGenerator::setDMANode(int index, volatile uint16_t *buf, int len)
 {
   m_DMAChain[index].eof          = 1; // always generate interrupt
   m_DMAChain[index].sosf         = 0;
@@ -622,7 +630,7 @@ bool SoundGenerator::play(bool value)
     return value;
 }
 
-SamplesGenerator * SoundGenerator::playSamples(int8_t const * data, int length, int volume, int durationMS)
+SamplesGenerator * SoundGenerator::playSamples(int8_t const *data, int length, int volume, int durationMS)
 {
   auto sgen = new SamplesGenerator(data, length);
   attach(sgen);
@@ -636,7 +644,7 @@ SamplesGenerator * SoundGenerator::playSamples(int8_t const * data, int length, 
 }
 
 // does NOT take ownership of the waveform generator
-void SoundGenerator::attach(WaveformGenerator * value)
+void SoundGenerator::attach(WaveformGenerator *value)
 {
   bool isPlaying = play(false);
 
@@ -648,7 +656,7 @@ void SoundGenerator::attach(WaveformGenerator * value)
   play(isPlaying);
 }
 
-void SoundGenerator::detach(WaveformGenerator * value)
+void SoundGenerator::detach(WaveformGenerator *value)
 {
   if (!value)
     return;
@@ -658,9 +666,9 @@ void SoundGenerator::detach(WaveformGenerator * value)
   play(isPlaying);
 }
 
-void SoundGenerator::detachNoSuspend(WaveformGenerator * value)
+void SoundGenerator::detachNoSuspend(WaveformGenerator *value)
 {
-  for (WaveformGenerator * c = m_channels, * prev = nullptr; c; prev = c, c = c->next) {
+  for (WaveformGenerator *c = m_channels, *prev = nullptr; c; prev = c, c = c->next) {
     if (c == value) {
       if (prev)
         prev->next = c->next;
@@ -698,7 +706,7 @@ int IRAM_ATTR SoundGenerator::getSample()
 }
 
 // used by DAC generator
-void IRAM_ATTR SoundGenerator::ISRHandler(void * arg)
+void IRAM_ATTR SoundGenerator::ISRHandler(void *arg)
 {
   if (I2S0.int_st.out_eof) {
 
@@ -715,7 +723,7 @@ void IRAM_ATTR SoundGenerator::ISRHandler(void * arg)
 }
 
 // used by sigma-delta generator
-void SoundGenerator::timerHandler(void * args)
+void SoundGenerator::timerHandler(void *args)
 {
   auto soundGenerator = (SoundGenerator *) args;
 
@@ -739,7 +747,7 @@ void SoundGenerator::SDLAudioCallback(void * data, Uint8 * buffer, int length)
 // N    : 2..254
 // M    : 1..63
 // ret: actual sample rate
-int SoundGenerator::calcI2STimingParams(int sampleRate, int * outA, int * outB, int * outN, int * outM)
+int SoundGenerator::calcI2STimingParams(int sampleRate, int *outA, int *outB, int *outN, int *outM)
 {
   *outM = 1;
 
@@ -779,7 +787,7 @@ int SoundGenerator::calcI2STimingParams(int sampleRate, int * outA, int * outB, 
     }
   }
 
-  return APB_CLK_FREQ / ((double)(*outN) + (double)(*outB) / (*outA)) / *outM;
+  return APB_CLK_FREQ / ((double) (*outN) + (double) (*outB) / (*outA)) / *outM;
 }
 
 // SoundGenerator

@@ -80,6 +80,7 @@ using fabgl::SerialPort;
 
 // Drivers Audio
 using fabgl::SoundGenerator;
+using fabgl::SpeakerWaveformGenerator;
 using fabgl::SineWaveformGenerator;
 
 // Video card
@@ -249,7 +250,6 @@ private:
   bool                    m_speakerDataEnable;
   SoundGenerator          m_soundGen;
   SineWaveformGenerator   m_waveGen;
-  //SquareWaveformGenerator m_waveGen;
 
   // CMOS & RTC
   MC146818                m_MC146818;

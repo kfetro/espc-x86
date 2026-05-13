@@ -182,6 +182,39 @@ private:
 
 };
 
+// Emulates the IBM PC internal speaker.
+// This is a 1-bit sound source driven by PIT channel 2 (OUT2) and gated by port
+// 0x61 speaker enable and gate bits.
+//
+// There is no frequency, no phase accumulator and no ramping.
+// The generator simply outputs a constant level when ON, or silence when OFF.
+class SpeakerWaveformGenerator : public WaveformGenerator {
+
+public:
+
+  SpeakerWaveformGenerator()
+    : m_level(false) {
+  }
+
+  // Frequency is ignored for the PC speaker
+  void setFrequency(int) override {
+  }
+
+  // Sets the logical speaker level (true = ON, false = OFF)
+  void setLevel(bool level) {
+    m_level = level;
+  }
+
+  // Returns the current sample
+  int getSample() override {
+    return m_level ? volume() : -volume();
+  }
+
+private:
+
+  volatile bool m_level;
+};
+
 /** @brief Sine waveform generator */
 class SineWaveformGenerator : public WaveformGenerator {
 
