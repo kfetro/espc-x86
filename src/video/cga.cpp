@@ -299,11 +299,7 @@ void CGA::handleInt10h()
       m_activePage = page;
 
       // Start addres (in words)
-      const uint16_t oldAddr = m_startAddress;
       m_startAddress = ((uint16_t) page * m_textPageSize) >> 1;
-      if (m_startAddress != oldAddr) {
-        printf("cga: Start address = 0x%04x (active page %d)\n", m_startAddress, m_activePage);
-      }
 
       const uint8_t addr_hi = (uint8_t) ((m_startAddress >> 8) & 0x3F);
       const uint8_t addr_lo = (uint8_t) ( m_startAddress       & 0xFF);
@@ -680,11 +676,7 @@ void CGA::writePort(uint16_t port, uint8_t value)
         {
           const uint16_t addr_hi = (uint16_t) (m_crtc[CGA_CRTC_STARTADDR_HI] & 0x3F) << 8;
           const uint16_t addr_lo = (uint16_t)  m_crtc[CGA_CRTC_STARTADDR_LO];
-          const uint16_t oldAddr = m_startAddress;
           m_startAddress = addr_hi | addr_lo;
-          if (m_startAddress != oldAddr) {
-            printf("cga: Start address = 0x%04x\n", m_startAddress);
-          }
           m_dirty = true;
           break;
         }
@@ -766,7 +758,6 @@ void CGA::writePort(uint16_t port, uint8_t value)
       //     | | +----------- [5] Intensity Select (0=normal, 1=high intensity)
       //     +-+------------- [6,7] Reserved
       // Note: [4] and [5] only for 320x200 graphics
-      printf("cga: Color select = 0x%02x\n", value);
       m_colorSelect = value;
       m_video->pause(true);
       m_video->updateLUT();
