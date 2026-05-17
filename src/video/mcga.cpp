@@ -732,10 +732,6 @@ uint8_t MCGA::readPort(uint16_t port)
 //printf("read 0x%04x\n", port);
   switch (port) {
 
-    // CRTC Index
-    case MCGA_PORT_CRTCIDX:
-      return m_crtcIndex;
-
     // CRTC Data
     case MCGA_PORT_CRTCDATA:
       return m_crtc[m_crtcIndex];

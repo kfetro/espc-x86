@@ -23,6 +23,9 @@
 
 #include <stdint.h>
 
+// Enable FPU debug output if needed (0 = disabled)
+#define FPU_DEBUG 0
+
 namespace fabgl {
 
 // 8087 Math Coprocessor emulation class.
@@ -67,7 +70,7 @@ private:
   // Used by FSAVE/FRSTOR and FLDENV/FSTENV/FNSTENV.
   uint16_t m_fpuIP;      // last ESC opcode IP offset
   uint16_t m_fpuCS;      // last ESC opcode CS segment
-  uint16_t m_fpuOpcode;  // last ESC opcode (low 8 bits)
+  uint16_t m_fpuOpcode;  // last ESC opcode (low 8 bits) - not saved in environment
 
   uint16_t m_fpuDP;      // last data pointer offset
   uint16_t m_fpuDS;      // last data pointer segment (approximate)
@@ -75,10 +78,10 @@ private:
   // ST(i) accessor
   double& st(int i);
 
-  // Pop ST(0)
+  // Pop ST(0) with stack underflow check
   void pop_st0();
 
-  // Push a copy into ST(0)
+  // Push a copy into ST(0) with stack overflow check
   void push_copy(double v);
 
   // Float/double loads and stores
@@ -104,6 +107,10 @@ private:
   void store_i32(uint32_t ea, int32_t v);
   void store_i64(uint32_t ea, int64_t v);
 
+  // BCD load/store (FBLD / FBSTP) – 80-bit packed BCD (18 digits)
+  long double load_bcd80(uint32_t ea);
+  void store_bcd80(uint32_t ea, long double v);
+
   // Tag Word helpers
   void     setTag(int stIndex, uint16_t tag);  // 0=valid,1=zero,2=special,3=empty
   uint16_t getTag(int stIndex);
@@ -113,10 +120,11 @@ private:
   // Comparison flags helper (C0,C2,C3)
   void setCompareFlags(double a, double b);
 
-  // Exception flags helper (IE, OE, UE, PE)
-  void updateExceptionsFromResult(double result);
+  // Exception flags helper (IE, DE, ZE, OE, UE, PE)
+  void updateExceptionsFromResult(double result, double original, bool precisionPossible);
+  void setPrecisionFlagIfNeeded(double original, double rounded);
 
-  // Round according to Control Word (RC bits)
+  // Round according to Control Word (RC bits) with ties-to-even for nearest
   double roundToMode(double x);
 
   // Mark DE (Denormal Operand) when x is subnormal

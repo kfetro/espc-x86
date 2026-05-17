@@ -308,7 +308,7 @@ void BIOS::handleInt15h()
 {
   uint8_t AH = i8086::AH();
 
-  printf("bios: int 15h AH=0x%02x\n", AH);
+  printf("bios: int 15h AH=0x%02x AL=0x%02x BH=0x%02x\n", AH, i8086::AL(), i8086::BH());
 
   switch (AH) {
 
@@ -944,7 +944,11 @@ void BIOS::pointingDeviceInterface()
 
     // Disable pointing device
     case 0x00:
-      m_i8042->enableMouse(false);
+      if (i8086::BH() == 1) {
+        m_i8042->enableMouse(true);
+      } else {
+        m_i8042->enableMouse(false);
+      }
       i8086::setAH(0x00);
       i8086::setFlagCF(false);
       break;

@@ -1226,6 +1226,7 @@ bool Computer::keyboardInterrupt(void *context)
 bool Computer::mouseInterrupt(void *context)
 {
   auto m = (Computer *) context;
+printf("irq 12 - int 0x74\n");
   return m->m_PIC_slave.signalInterrupt(4);
 }
 

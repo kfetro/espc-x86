@@ -395,10 +395,6 @@ uint8_t HGC::readPort(uint16_t port)
 {
   switch (port) {
 
-    // CRTC Index
-    case HGC_PORT_CRTC_INDEX:
-      return m_crtcIndex;
-
     // CRTC Data
     case HGC_PORT_CRTC_DATA:
       return m_crtc[m_crtcIndex];

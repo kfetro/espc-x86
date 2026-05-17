@@ -665,7 +665,7 @@ uint8_t *VideoScanout::rawScreenshot(uint16_t *width, uint16_t *height)
 void VideoScanout::toggleCompositeFilter()
 {
   if (m_compositeMonitor == false) {
-
+#if 0
     // Allocate memory for composite LUT
     m_compositeLUT = (uint8_t *) heap_caps_malloc(4096, MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
     if (!m_compositeLUT) {
@@ -679,7 +679,7 @@ void VideoScanout::toggleCompositeFilter()
         m_compositeLUT[idx] = compositeRGB222_core((uint8_t) cur, (uint8_t) prev);
       }
     }
-
+#endif
     m_compositeMonitor = true;
   } else {
     m_compositeMonitor = false;
@@ -839,7 +839,7 @@ void IRAM_ATTR VideoScanout::drawScanline_text_40x25(void *ctx, uint8_t *dst, in
     output->m_cursorRow = adapter->cursorRow(page);
     output->m_cursorCol = adapter->cursorCol(page);
     output->m_cursorEnabled = adapter->cursorEnabled();
-    output->blinkEnabled = false;//adapter->blinkEnabled();
+    output->blinkEnabled = adapter->blinkEnabled();
 
     output->m_charHeight = adapter->charHeight();
 
@@ -875,7 +875,7 @@ void IRAM_ATTR VideoScanout::drawScanline_text_40x25(void *ctx, uint8_t *dst, in
   const uint32_t base = (output->m_startAddress << 1) & 0x1FFF; // words to bytes
 
   const uint32_t vramMask = output->m_vramSize - 1;
-  const uint32_t offset = base + (textRow * textCols * 2) & vramMask;
+  const uint32_t offset = (base + textRow * textCols * 2) & vramMask;
 
   uint8_t *src = output->m_vram + offset;
   uint8_t *LUT = output->m_rawPixelLUT;
@@ -1022,7 +1022,7 @@ void IRAM_ATTR VideoScanout::drawScanline_text_80x25(void *ctx, uint8_t *dst, in
   const uint32_t base = (output->m_startAddress << 1) & 0x1FFF; // words to bytes
 
   const uint32_t vramMask = output->m_vramSize - 1;
-  const uint32_t offset = base + (textRow * textCols * 2) & vramMask;
+  const uint32_t offset = (base + textRow * textCols * 2) & vramMask;
 
   uint8_t *src = output->m_vram + offset;
   uint8_t *LUT = output->m_rawPixelLUT;
@@ -1154,7 +1154,7 @@ void IRAM_ATTR VideoScanout::drawScanline_mda_80x25(void *ctx, uint8_t *dst, int
   const uint32_t base = (output->m_startAddress << 1) & 0x1FFF; // words to bytes
 
   const uint32_t vramMask = output->m_vramSize - 1;
-  const uint32_t offset = base + (textRow * textCols * 2) & vramMask;
+  const uint32_t offset = (base + textRow * textCols * 2) & vramMask;
 
   uint8_t *src = output->m_vram + offset;
   uint8_t *LUT = output->m_rawPixelLUT;
@@ -1984,6 +1984,8 @@ void VideoScanout::drawOSDPause(int pixelsLine, int scanLines, int charScanline,
   }
 }
 
+#if 0
+
 inline __attribute__((always_inline))
 void VideoScanout::compositeFilter(uint8_t *dst, int width)
 {
@@ -2043,16 +2045,16 @@ uint8_t VideoScanout::compositeRGB222_core(uint8_t curRGB, uint8_t prevRGB)
   uint8_t pb = (prevRGB >> 4) & 0x03;
 
   // Approximate luminance (green has more weight)
-  uint8_t y  = (r + (g << 1) + b) >> 2;
+  uint8_t  y = ( r + ( g << 1) +  b) >> 2;
   uint8_t py = (pr + (pg << 1) + pb) >> 2;
 
   // Low-pass filter on luminance
   y = (y + py) >> 1;
 
   // Stronger low-pass on chroma (color bleeding)
-  r = (r + pr) >> 1;
+  r = (    r + pr) >> 1;
   g = (3 * g + pg) >> 2;
-  b = (b + pb) >> 1;
+  b = (    b + pb) >> 1;
 
   // Re-inject luminance for brightness stability
   r = (r + y) >> 1;
@@ -2062,5 +2064,96 @@ uint8_t VideoScanout::compositeRGB222_core(uint8_t curRGB, uint8_t prevRGB)
   // Repack RGB222 (no sync bits)
   return (b << 4) | (g << 2) | r;
 }
+
+#else
+
+inline __attribute__((always_inline))
+void VideoScanout::compositeFilter(uint8_t *dst, int width)
+{
+  // Save sync bits (bits 6 and 7) of the first pixel (they are not modified)
+  uint8_t sync0 = dst[0 ^ 2] & 0xC0;
+
+  // Sliding window: p2 (x-2), p1 (x-1), p0 (x)
+  uint8_t p2 = 0;               // virtual black pixel to the left
+  uint8_t p1 = 0;               // virtual black pixel to the left
+  uint8_t p0 = dst[0 ^ 2] & 0x3F;  // first real pixel (colour only)
+
+  for (int x = 0; x < width; x++) {
+    // Process the centre pixel (position x-1) when we have enough history
+    if (x >= 2) {
+      int physOut = (x - 1) ^ 2;            // physical index of output pixel
+      uint8_t outRGB = compositeRGB222_core(p2, p1, p0);
+      uint8_t sync = dst[physOut] & 0xC0;   // preserve original sync bits
+      dst[physOut] = sync | outRGB;
+    }
+
+    // Advance the window
+    p2 = p1;
+    p1 = p0;
+    if (x + 1 < width) {
+      p0 = dst[(x + 1) ^ 2] & 0x3F;
+    } else {
+      p0 = 0;   // virtual black pixel to the right
+    }
+  }
+
+  // Process the last pixel (position width-1) with window (p1, p0, 0)
+  int lastPhys = (width - 1) ^ 2;
+  uint8_t lastRGB = compositeRGB222_core(p1, p0, 0);
+  uint8_t lastSync = dst[lastPhys] & 0xC0;
+  dst[lastPhys] = lastSync | lastRGB;
+
+  // Optional: also process the first pixel (x=0) using black on the left
+  // Uncomment the block below if you want to filter the first pixel as well
+  /*
+  if (width >= 1) {
+    int firstPhys = 0 ^ 2;
+    uint8_t firstRGB = compositeRGB222_core(0, 0, dst[0 ^ 2] & 0x3F);
+    dst[firstPhys] = sync0 | firstRGB;
+  }
+  */
+}
+
+uint8_t VideoScanout::compositeRGB222_core(uint8_t p2, uint8_t p1, uint8_t p0)
+{
+  // Extract RGB components (2 bits each)
+  uint8_t r2 = (p2 >> 0) & 3, g2 = (p2 >> 2) & 3, b2 = (p2 >> 4) & 3;
+  uint8_t r1 = (p1 >> 0) & 3, g1 = (p1 >> 2) & 3, b1 = (p1 >> 4) & 3;
+  uint8_t r0 = (p0 >> 0) & 3, g0 = (p0 >> 2) & 3, b0 = (p0 >> 4) & 3;
+
+  // Luminance Y with standard coefficients (scaled to integers)
+  // Y = (R*0.299 + G*0.587 + B*0.114) → using (3*R + 6*G + 1*B)/10
+  uint8_t y2 = (r2 * 3 + g2 * 6 + b2 * 1) / 10;
+  uint8_t y1 = (r1 * 3 + g1 * 6 + b1 * 1) / 10;
+  uint8_t y0 = (r0 * 3 + g0 * 6 + b0 * 1) / 10;
+
+  // FIR luminance filter: [0.25, 0.5, 0.25] – smooths without losing edges
+  uint8_t y_filt = (y2 + 2 * y1 + y0) / 4;
+
+  // Chrominance: difference of the center pixel from the average of neighbours
+  int diff_r = r1 - ((r2 + r0) / 2);
+  int diff_g = g1 - ((g2 + g0) / 2);
+  int diff_b = b1 - ((b2 + b0) / 2);
+
+  // Attenuate chrominance (simulates lower bandwidth)
+  diff_r = diff_r * 2 / 3;
+  diff_g = diff_g * 2 / 3;
+  diff_b = diff_b * 2 / 3;
+
+  // Reconstruct filtered RGB
+  int r_out = y_filt + diff_r;
+  int g_out = y_filt + diff_g;
+  int b_out = y_filt + diff_b;
+
+  // Clamp to [0, 3]
+  r_out = (r_out < 0) ? 0 : (r_out > 3) ? 3 : r_out;
+  g_out = (g_out < 0) ? 0 : (g_out > 3) ? 3 : g_out;
+  b_out = (b_out < 0) ? 0 : (b_out > 3) ? 3 : b_out;
+
+  // Repack in RGB222 format (b in bits 4-5, g in 2-3, r in 0-1)
+  return (uint8_t)((b_out << 4) | (g_out << 2) | r_out);
+}
+
+#endif
 
 } // end of namespace

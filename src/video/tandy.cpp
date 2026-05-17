@@ -674,10 +674,6 @@ uint8_t Tandy::readPort(uint16_t port)
 {
   switch (port) {
 
-    // CRTC Index
-    case TGA_PORT_CRTCIDX:
-      return m_crtcIndex;
-
     // CRTC Data
     case TGA_PORT_CRTCDATA:
       return m_crtc[m_crtcIndex];

@@ -530,10 +530,6 @@ uint8_t CGA::readPort(uint16_t port)
 {
   switch (port) {
 
-    // CRTC Index
-    case CGA_PORT_CRTCIDX:
-      return m_crtcIndex;
-
     // CRTC Data
     case CGA_PORT_CRTCDATA:
       return m_crtc[m_crtcIndex];

@@ -27,15 +27,23 @@
 #include <string.h>
 #include <limits>
 
+#if FPU_DEBUG
+#define FPU_PRINT(...) printf(__VA_ARGS__)
+#else
+#define FPU_PRINT(...) ((void)0)
+#endif
+
 namespace fabgl {
 
 using fabgl::i8086;
 
-i8087::i8087() {
+i8087::i8087()
+{
   reset();
 }
 
-void i8087::reset() {
+void i8087::reset()
+{
   fpu_sp = 0;
   for (int i = 0; i < 8; ++i) {
     fpu[i] = 0.0;
@@ -60,26 +68,45 @@ void i8087::reset() {
 }
 
 // ST(i) accessor
-double& i8087::st(int i) {
+double& i8087::st(int i)
+{
   return fpu[(fpu_sp + i) & 7];
 }
 
-// Pop ST(0)
-void i8087::pop_st0() {
-  // Mark current ST(0) as empty in the tag word, then pop
+// Pop ST(0) with underflow check
+void i8087::pop_st0()
+{
+  // Check if stack is empty (ST(0) tag == 11b)
+  if (getTag(0) == 3) {
+    m_statusWord |= (1u << 0); // IE (Invalid Operation)
+    FPU_PRINT("FPU: stack underflow\n");
+    return;
+  }
   setTagEmpty(0);
   fpu_sp = (fpu_sp + 1) & 7;
 }
 
-// Push copy into ST(0)
-void i8087::push_copy(double v) {
+// Push copy into ST(0) with overflow check
+void i8087::push_copy(double v)
+{
+  // Check if stack is full (no empty registers)
+  bool full = true;
+  for (int i = 0; i < 8; ++i) {
+    if (getTag(i) == 3) { full = false; break; }
+  }
+  if (full) {
+    m_statusWord |= (1u << 0); // IE (Invalid Operation)
+    FPU_PRINT("FPU: stack overflow\n");
+    return;
+  }
   fpu_sp = (fpu_sp - 1) & 7;
   st(0) = v;
   setTagFromValue(0);
 }
 
 // Load m32 (float)
-double i8087::load_m32(uint32_t ea) {
+double i8087::load_m32(uint32_t ea)
+{
   uint32_t u = 0;
   u |= (uint32_t) i8086::RMEM16((int)ea + 0) << 0;
   u |= (uint32_t) i8086::RMEM16((int)ea + 2) << 16;
@@ -89,7 +116,8 @@ double i8087::load_m32(uint32_t ea) {
 }
 
 // Load m64 (double)
-double i8087::load_m64(uint32_t ea) {
+double i8087::load_m64(uint32_t ea)
+{
   uint64_t u = 0;
   u |= (uint64_t) i8086::RMEM16((int)ea + 0) << 0;
   u |= (uint64_t) i8086::RMEM16((int)ea + 2) << 16;
@@ -101,7 +129,8 @@ double i8087::load_m64(uint32_t ea) {
 }
 
 // Store m32 (float)
-void i8087::store_m32(uint32_t ea, double v) {
+void i8087::store_m32(uint32_t ea, double v)
+{
   float f = (float)v;
   uint32_t u;
   memcpy(&u, &f, sizeof(u));
@@ -110,7 +139,8 @@ void i8087::store_m32(uint32_t ea, double v) {
 }
 
 // Store m64 (double)
-void i8087::store_m64(uint32_t ea, double v) {
+void i8087::store_m64(uint32_t ea, double v)
+{
   uint64_t u;
   memcpy(&u, &v, sizeof(u));
   i8086::WMEM16((int)ea + 0, (uint16_t)(u & 0xFFFF));
@@ -120,7 +150,8 @@ void i8087::store_m64(uint32_t ea, double v) {
 }
 
 // Load m80 (extended real, 80 bits) - approximate using double
-double i8087::load_m80(uint32_t ea) {
+double i8087::load_m80(uint32_t ea)
+{
   // Approximate implementation:
   // read the low 64 bits (first 8 bytes) and reinterpret as double,
   // ignoring the top 16 bits.
@@ -136,7 +167,8 @@ double i8087::load_m80(uint32_t ea) {
 }
 
 // Store m80 (extended real, 80 bits) - approximate using double
-void i8087::store_m80(uint32_t ea, double v) {
+void i8087::store_m80(uint32_t ea, double v)
+{
   // Approximate implementation:
   // write 64-bit double into low 8 bytes, zero high 16 bits.
   uint64_t u;
@@ -150,17 +182,20 @@ void i8087::store_m80(uint32_t ea, double v) {
 }
 
 // Integer loads for FILD
-int16_t i8087::load_i16(uint32_t ea) {
+int16_t i8087::load_i16(uint32_t ea)
+{
   return (int16_t) i8086::RMEM16((int)ea);
 }
 
-int32_t i8087::load_i32(uint32_t ea) {
+int32_t i8087::load_i32(uint32_t ea)
+{
   uint32_t lo = i8086::RMEM16((int)ea + 0);
   uint32_t hi = i8086::RMEM16((int)ea + 2);
   return (int32_t)((hi << 16) | lo);
 }
 
-int64_t i8087::load_i64(uint32_t ea) {
+int64_t i8087::load_i64(uint32_t ea)
+{
   uint64_t u = 0;
   u |= (uint64_t) i8086::RMEM16((int)ea + 0) << 0;
   u |= (uint64_t) i8086::RMEM16((int)ea + 2) << 16;
@@ -170,41 +205,108 @@ int64_t i8087::load_i64(uint32_t ea) {
 }
 
 // Integer stores for FIST/FISTP
-void i8087::store_i16(uint32_t ea, int16_t v) {
+void i8087::store_i16(uint32_t ea, int16_t v)
+{
   i8086::WMEM16((int)ea, (uint16_t)v);
 }
 
-void i8087::store_i32(uint32_t ea, int32_t v) {
+void i8087::store_i32(uint32_t ea, int32_t v)
+{
   i8086::WMEM16((int)ea + 0, (uint16_t)(v & 0xFFFF));
   i8086::WMEM16((int)ea + 2, (uint16_t)((v >> 16) & 0xFFFF));
 }
 
-void i8087::store_i64(uint32_t ea, int64_t v) {
+void i8087::store_i64(uint32_t ea, int64_t v)
+{
   i8086::WMEM16((int)ea + 0, (uint16_t)((v >>  0) & 0xFFFF));
   i8086::WMEM16((int)ea + 2, (uint16_t)((v >> 16) & 0xFFFF));
   i8086::WMEM16((int)ea + 4, (uint16_t)((v >> 32) & 0xFFFF));
   i8086::WMEM16((int)ea + 6, (uint16_t)((v >> 48) & 0xFFFF));
 }
 
+// BCD load (FBLD) – 80-bit packed BCD (18 digits)
+long double i8087::load_bcd80(uint32_t ea)
+{
+  // Read 10 bytes (80 bits) in little-endian order.
+  // The format is 18 packed BCD digits (least significant digit first),
+  // plus a sign byte at the end.
+  uint8_t bcd[10];
+  for (int i = 0; i < 10; ++i) {
+    bcd[i] = i8086::RMEM8((int)ea + i);
+  }
+  // Determine sign: bit 7 of the last byte (byte 9) is the sign (1 = negative)
+  bool negative = (bcd[9] & 0x80) != 0;
+  // The last byte's lower 7 bits are unused (or should be zero)
+  long double value = 0.0L;
+  long double factor = 1.0L;
+  for (int i = 0; i < 9; ++i) {
+    uint8_t byte = bcd[i];
+    uint8_t low  = byte & 0x0F;
+    uint8_t high = (byte >> 4) & 0x0F;
+    value += low * factor;
+    factor *= 10.0L;
+    value += high * factor;
+    factor *= 10.0L;
+  }
+  if (negative) value = -value;
+  // Convert to double (loss of precision but acceptable for emulation)
+  return (double)value;
+}
+
+// BCD store (FBSTP) – 80-bit packed BCD (18 digits)
+void i8087::store_bcd80(uint32_t ea, long double v)
+{
+  bool negative = false;
+  if (v < 0.0L) {
+    negative = true;
+    v = -v;
+  }
+  // Clamp to 18-digit range: 10^18 - 1
+  long double max_bcd = 1.0L;
+  for (int i = 0; i < 18; ++i) max_bcd *= 10.0L;
+  max_bcd -= 1.0L;
+  if (v > max_bcd) v = max_bcd; // overflow -> clamp (real 8087 would set exception)
+  uint64_t int_part = (uint64_t)v; // floor
+  uint8_t bcd[10] = {0};
+  // Convert integer part to BCD (little-endian, least significant digit first)
+  for (int i = 0; i < 18; ++i) {
+    uint8_t digit = int_part % 10;
+    int_part /= 10;
+    int byte_index = i / 2;
+    int nibble = (i % 2) ? 4 : 0;
+    bcd[byte_index] |= (digit << nibble);
+  }
+  // Set sign in the last byte (bit 7)
+  if (negative) bcd[9] |= 0x80;
+  // Write back
+  for (int i = 0; i < 10; ++i) {
+    i8086::WMEM8((int)ea + i, bcd[i]);
+  }
+}
+
 // Tag Word helpers --------------------------------------------------------
 
-void i8087::setTag(int stIndex, uint16_t tag) {
+void i8087::setTag(int stIndex, uint16_t tag)
+{
   int phys  = (fpu_sp + stIndex) & 7;
   int shift = phys * 2;
   m_tagWord = (uint16_t)((m_tagWord & ~(3u << shift)) | ((tag & 3u) << shift));
 }
 
-uint16_t i8087::getTag(int stIndex) {
+uint16_t i8087::getTag(int stIndex)
+{
   int phys  = (fpu_sp + stIndex) & 7;
   int shift = phys * 2;
   return (uint16_t)((m_tagWord >> shift) & 3u);
 }
 
-void i8087::setTagEmpty(int stIndex) {
+void i8087::setTagEmpty(int stIndex)
+{
   setTag(stIndex, 3u);
 }
 
-void i8087::setTagFromValue(int stIndex) {
+void i8087::setTagFromValue(int stIndex)
+{
   double v = st(stIndex);
   if (isnan(v) || isinf(v)) {
     setTag(stIndex, 2u); // special
@@ -216,7 +318,8 @@ void i8087::setTagFromValue(int stIndex) {
 }
 
 // Comparison flags helper: set C0, C2, C3 in m_statusWord according to a ? b
-void i8087::setCompareFlags(double a, double b) {
+void i8087::setCompareFlags(double a, double b)
+{
   // Clear C0, C2, C3 (bits 8, 10, 14)
   m_statusWord &= ~((1u << 8) | (1u << 10) | (1u << 14));
 
@@ -237,67 +340,68 @@ void i8087::setCompareFlags(double a, double b) {
   }
 }
 
-// Exception flags helper: update IE, OE, UE from result
-void i8087::updateExceptionsFromResult(double result) {
-  // If result is NaN => invalid operation (IE)
+// Exception flags helper: update IE, OE, UE, optionally PE
+void i8087::updateExceptionsFromResult(double result, double original, bool precisionPossible)
+{
+  // IE: Invalid operation (NaN)
   if (isnan(result)) {
     m_statusWord |= (1u << 0); // IE
     return;
   }
 
-  // Overflow: result is infinite
+  // OE: Overflow (infinite)
   if (isinf(result)) {
     m_statusWord |= (1u << 3); // OE
     return;
   }
 
-  // Underflow: result is subnormal (very small non-zero)
-  if (result != 0.0) {
-    int cls = fpclassify(result);
-    if (cls == FP_SUBNORMAL) {
+  // UE: Underflow (subnormal non-zero)
+  if (result != 0.0 && fpclassify(result) == FP_SUBNORMAL) {
       m_statusWord |= (1u << 4); // UE
     }
+
+  // PE: Precision (only if rounding could have occurred and the value changed)
+  if (precisionPossible && result != original) {
+    m_statusWord |= (1u << 5); // PE
+  }
+}
+
+// Convenience to set precision flag when rounding changes the value
+void i8087::setPrecisionFlagIfNeeded(double original, double rounded) {
+  if (original != rounded) {
+    m_statusWord |= (1u << 5); // PE
   }
 }
 
 // ---------------------------------------------------------------------------
-// Round according to Control Word (RC bits)
+// Round according to Control Word (RC bits) with ties-to-even for nearest
 // RC bits (m_controlWord >> 10) & 3:
 //   00 = round to nearest
 //   01 = round down (toward -inf)
 //   02 = round up (toward +inf)
 //   03 = truncate (toward 0)
 // ---------------------------------------------------------------------------
-double i8087::roundToMode(double x) {
+double i8087::roundToMode(double x)
+{
   uint16_t rc = (m_controlWord >> 10) & 0x3;
 
   switch (rc) {
-    case 0: { // round to nearest (x87 version)
-      // NOT IEEE-even, but matches original 8087 behaviour closely
-      double r;
-      if (x >= 0.0)
-        r = floor(x + 0.5);
-      else
-        r = ceil(x - 0.5);
-      return r;
-    }
-
-    case 1: // round down (-inf)
+    case 0: // round to nearest, ties to even
+      return nearbyint(x);
+    case 1: // round down (toward -inf)
       return floor(x);
-
-    case 2: // round up (+inf)
+    case 2: // round up (toward +inf)
       return ceil(x);
-
-    case 3: // truncate (toward 0)
+    case 3: // truncate (toward zero)
+      return trunc(x);
     default:
-      return (x >= 0.0 ? floor(x) : ceil(x));
+      return x;
   }
 }
 
-// ---------------------------------------------------------------------------
 // Mark DE (Denormal Operand) when the input operand is subnormal
-// ---------------------------------------------------------------------------
-void i8087::checkDenormalOperand(double x) {
+void i8087::checkDenormalOperand(double x)
+{
   if (fpclassify(x) == FP_SUBNORMAL) {
     // DE = bit 1 in status word
     m_statusWord |= (1u << 1);
@@ -311,8 +415,8 @@ void i8087::execute(uint8_t  raw_opcode_id,
                     uint8_t  i_rm,
                     uint32_t rm_addr,
                     uint8_t  i_w,
-                    const uint8_t* opcode_stream) {
-
+                    const uint8_t* opcode_stream)
+{
   uint8_t opcode = raw_opcode_id; // D8..DF
   uint8_t mod    = i_mod;
   uint8_t reg    = i_reg;
@@ -328,29 +432,47 @@ void i8087::execute(uint8_t  raw_opcode_id,
   // -----------------------------------------------------------------------
   // FNINIT: DB E3  (opcode = 0xDB, mod = 3, reg = 4, rm = 3)
   if (opcode == 0xDB && mod == 3 && reg == 4 && rm == 3) {
-    // FNINIT: initialize FPU without waiting (no FWAIT)
-    reset();      // ya tienes reset() que deja CW=037F, SW=0, TW=FFFF, pila vacía...
+    reset();
     return;
   }
+
+  // -----------------------------------------------------------------------
+  // FWAIT (not an ESC instruction, but provided for completeness)
+  // In real hardware, FWAIT (0x9B) waits for FPU. In emulation it's a NOP.
+  // This function is only called for ESC D8-DF, so FWAIT is not here.
+  // The CPU core (i8086) must handle 0x9B as a no-op.
+  // -----------------------------------------------------------------------
 
   // -----------------------------------------------------------------------
   // FNSTSW / FSTSW — Store FPU Status Word
   //   DD /7 (mod != 3)         : FNSTSW m16
   //   DF E0 (mod=3, reg=4,rm=0): FNSTSW AX
   // -----------------------------------------------------------------------
-  if (opcode == 0xDD && reg == 7 && mod != 3) { // FNSTSW m16
+  if (opcode == 0xDD && reg == 7 && mod != 3) {
     i8086::WMEM16((int)rm_addr, (uint16_t)m_statusWord);
     return;
   }
-  if (opcode == 0xDF && mod == 3 && reg == 4 && rm == 0) { // FNSTSW AX
+  if (opcode == 0xDF && mod == 3 && reg == 4 && rm == 0) {
     i8086::setAX((uint16_t)m_statusWord);
+    return;
+  }
+
+  // -----------------------------------------------------------------------
+  // FCLEX / FNCLEX – Clear FPU exception flags
+  //   D9 E2 (mod=3, reg=4, rm=2) : FCLEX
+  //   DB E2 (mod=3, reg=4, rm=2) : FNCLEX
+  // -----------------------------------------------------------------------
+  if ((opcode == 0xD9 || opcode == 0xDB) && mod == 3 && reg == 4 && rm == 2) {
+    // Clear all exception flags in status word:
+    // IE (0), DE (1), ZE (2), OE (3), UE (4), PE (5)
+    m_statusWord &= ~((1u << 0) | (1u << 1) | (1u << 2) | (1u << 3) | (1u << 4) | (1u << 5));
     return;
   }
 
   // -----------------------------------------------------------------------
   // FLDCW - Load FPU Control Word
   // -----------------------------------------------------------------------
-  if (opcode == 0xD9 && reg == 5 && mod != 3) { // FLDCW m16
+  if (opcode == 0xD9 && reg == 5 && mod != 3) {
     uint16_t cw = i8086::RMEM16((int)rm_addr);
     m_controlWord = cw;
     return;
@@ -358,15 +480,13 @@ void i8087::execute(uint8_t  raw_opcode_id,
 
   // FSTCW m16  —  D9 /7  (mod != 3)
   if (opcode == 0xD9 && reg == 7 && mod != 3) {
-    // Save current Control Word into memory
+    i8086::WMEM16((int)rm_addr, m_controlWord);
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-
-    i8086::WMEM16((int)rm_addr, m_controlWord);
     return;
   }
 
-  // FNOP: D9 D0  (opcode=D9, mod=3, reg=2, rm=0)
+  // FNOP: D9 D0
   if (opcode == 0xD9 && mod == 3 && reg == 2 && rm == 0) {
     return;
   }
@@ -377,8 +497,8 @@ void i8087::execute(uint8_t  raw_opcode_id,
   if (opcode == 0xD9 && reg == 0 && mod == 3) {
     uint16_t tag = getTag(rm);
     double v = st(rm);
-    fpu_sp = (fpu_sp - 1) & 7;
-    st(0) = v;
+    push_copy(v);
+    // Keep the original tag of the source
     setTag(0, tag);
     return;
   }
@@ -402,12 +522,9 @@ void i8087::execute(uint8_t  raw_opcode_id,
         return;
 
       case 1: // D9 E1: FABS
-      {
-        double v = st(0);
-        st(0) = (v < 0.0 ? -v : v);
+        st(0) = fabs(st(0));
         setTagFromValue(0);
         return;
-      }
 
       case 4: // D9 E4: FTST ST(0) vs 0.0
       {
@@ -479,6 +596,30 @@ void i8087::execute(uint8_t  raw_opcode_id,
     }
   }
 
+  // -----------------------------------------------------------------------
+  // FINCSTP / FDECSTP / FENI / FDISI (non‑arithmetic)
+  // -----------------------------------------------------------------------
+  // FINCSTP: D9 F7 (opcode D9, mod=3, reg=6, rm=7)
+  if (opcode == 0xD9 && mod == 3 && reg == 6 && rm == 7) {
+    fpu_sp = (fpu_sp + 1) & 7;   // increment TOP pointer
+    return;
+  }
+  // FDECSTP: D9 F6 (opcode D9, mod=3, reg=6, rm=6)
+  if (opcode == 0xD9 && mod == 3 && reg == 6 && rm == 6) {
+    fpu_sp = (fpu_sp - 1) & 7;   // decrement TOP pointer
+    return;
+  }
+  // FENI: DB E0 (enable interrupts) – no‑op in emulation
+  if (opcode == 0xDB && mod == 3 && reg == 4 && rm == 0) {
+    // ignore
+    return;
+  }
+  // FDISI: DB E1 (disable interrupts) – no‑op in emulation
+  if (opcode == 0xDB && mod == 3 && reg == 4 && rm == 1) {
+    // ignore
+    return;
+  }
+
   // FXCH ST(i): ESC D9 /1, mod=3
   if (opcode == 0xD9 && reg == 1 && mod == 3) {
     double t = st(0);
@@ -493,26 +634,24 @@ void i8087::execute(uint8_t  raw_opcode_id,
   }
 
   // -----------------------------------------------------------------------
-  // FSTENV / FNSTENV - Store FPU Environment (16-bit)
+  // FSTENV / FNSTENV - Store FPU Environment (16-bit, 14 bytes)
   // -----------------------------------------------------------------------
   if (opcode == 0xD9 && reg == 6 && mod != 3) {
-    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
-    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-
     int ea = (int) rm_addr;
     i8086::WMEM16(ea +  0, m_controlWord);
     i8086::WMEM16(ea +  2, m_statusWord);
     i8086::WMEM16(ea +  4, m_tagWord);
     i8086::WMEM16(ea +  6, m_fpuIP);
     i8086::WMEM16(ea +  8, m_fpuCS);
-    i8086::WMEM16(ea + 10, m_fpuOpcode);
-    i8086::WMEM16(ea + 12, m_fpuDP);
-    i8086::WMEM16(ea + 14, m_fpuDS);
+    i8086::WMEM16(ea + 10, m_fpuDP);
+    i8086::WMEM16(ea + 12, m_fpuDS);
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
     return;
   }
 
   // -----------------------------------------------------------------------
-  // FLDENV - Load FPU Environment (16-bit)
+  // FLDENV - Load FPU Environment (16-bit, 14 bytes)
   // -----------------------------------------------------------------------
   if (opcode == 0xD9 && reg == 4 && mod != 3) {
     int ea = (int) rm_addr;
@@ -521,39 +660,34 @@ void i8087::execute(uint8_t  raw_opcode_id,
     m_tagWord     = i8086::RMEM16(ea +  4);
     m_fpuIP       = i8086::RMEM16(ea +  6);
     m_fpuCS       = i8086::RMEM16(ea +  8);
-    m_fpuOpcode   = i8086::RMEM16(ea + 10);
-    m_fpuDP       = i8086::RMEM16(ea + 12);
-    m_fpuDS       = i8086::RMEM16(ea + 14);
+    m_fpuDP       = i8086::RMEM16(ea + 10);
+    m_fpuDS       = i8086::RMEM16(ea + 12);
     return;
   }
 
   // -----------------------------------------------------------------------
-  // FSAVE / FNSAVE - Save FPU State (16-bit)
+  // FSAVE / FNSAVE - Save FPU State (16-bit, 14 + 8*10 = 94 bytes)
   // -----------------------------------------------------------------------
   if (opcode == 0xDD && reg == 6 && mod != 3) {
     int ea = (int) rm_addr;
-    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
-    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-
-    // Save environment
+    // Save environment (14 bytes)
     i8086::WMEM16(ea +  0, m_controlWord);
     i8086::WMEM16(ea +  2, m_statusWord);
     i8086::WMEM16(ea +  4, m_tagWord);
     i8086::WMEM16(ea +  6, m_fpuIP);
     i8086::WMEM16(ea +  8, m_fpuCS);
-    i8086::WMEM16(ea + 10, m_fpuOpcode);
-    i8086::WMEM16(ea + 12, m_fpuDP);
-    i8086::WMEM16(ea + 14, m_fpuDS);
-
+    i8086::WMEM16(ea + 10, m_fpuDP);
+    i8086::WMEM16(ea + 12, m_fpuDS);
     // Save ST(0..7) as 80-bit values (approximate)
-    int regsBase = ea + 16;
+    int regsBase = ea + 14;
     for (int i = 0; i < 8; ++i) {
       double v = st(i); // logical ST(i)
       store_m80((uint32_t)(regsBase + i * 10), v);
     }
-
     // After FSAVE, x87 is initialized
     reset();
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
     return;
   }
 
@@ -562,19 +696,16 @@ void i8087::execute(uint8_t  raw_opcode_id,
   // -----------------------------------------------------------------------
   if (opcode == 0xDD && reg == 4 && mod != 3) {
     int ea = (int) rm_addr;
-
     // Restore environment
     m_controlWord = i8086::RMEM16(ea +  0);
     m_statusWord  = i8086::RMEM16(ea +  2);
     m_tagWord     = i8086::RMEM16(ea +  4);
     m_fpuIP       = i8086::RMEM16(ea +  6);
     m_fpuCS       = i8086::RMEM16(ea +  8);
-    m_fpuOpcode   = i8086::RMEM16(ea + 10);
-    m_fpuDP       = i8086::RMEM16(ea + 12);
-    m_fpuDS       = i8086::RMEM16(ea + 14);
-
+    m_fpuDP       = i8086::RMEM16(ea + 10);
+    m_fpuDS       = i8086::RMEM16(ea + 12);
     // Restore ST(0..7)
-    int regsBase = ea + 16;
+    int regsBase = ea + 14;
     fpu_sp = 0;
     for (int i = 0; i < 8; ++i) {
       double v = load_m80((uint32_t)(regsBase + i * 10));
@@ -612,7 +743,7 @@ void i8087::execute(uint8_t  raw_opcode_id,
         c = 0.0;
         break;
       default:
-        printf("8087 unimplemented: ESC D9 /5 rm=%d (FLD const)\n", rm);
+        FPU_PRINT("8087 unimplemented: ESC D9 /5 rm=%d (FLD const)\n", rm);
         return;
     }
     push_copy(c);
@@ -620,13 +751,36 @@ void i8087::execute(uint8_t  raw_opcode_id,
   }
 
   // -----------------------------------------------------------------------
-  // Transcendentales ESC D9, mod=3 (reg=6,7)
+  // FBLD / FBSTP - BCD load/store (80-bit packed BCD)
+  // -----------------------------------------------------------------------
+  // FBLD m80: DF /4 (opcode DF, reg=4, mod != 3)
+  if (opcode == 0xDF && reg == 4 && mod != 3) {
+    long double v = load_bcd80(rm_addr);
+    push_copy((double)v);
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
+    return;
+  }
+  // FBSTP m80: DF /6 (opcode DF, reg=6, mod != 3)
+  if (opcode == 0xDF && reg == 6 && mod != 3) {
+    long double v = st(0);
+    store_bcd80(rm_addr, v);
+    pop_st0();
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
+    return;
+  }
+
+  // -----------------------------------------------------------------------
+  // Transcendentals ESC D9, mod=3 (reg=6,7)
   // -----------------------------------------------------------------------
   if (opcode == 0xD9 && mod == 3) {
     // F2XM1: ST(0) = 2^ST(0) - 1
     if (reg == 6 && rm == 0) {
+      double old = st(0);
       st(0) = pow(2.0, st(0)) - 1.0;
-      updateExceptionsFromResult(st(0));
+      updateExceptionsFromResult(st(0), old, true);
+      setTagFromValue(0);
       return;
     }
 
@@ -636,8 +790,10 @@ void i8087::execute(uint8_t  raw_opcode_id,
       double y = st(1);
       checkDenormalOperand(x);
       checkDenormalOperand(y);
+      double old = st(1);
       st(1) = y * (log(x) / log(2.0));
-      updateExceptionsFromResult(st(1));
+      updateExceptionsFromResult(st(1), old, true);
+      setTagFromValue(1);
       pop_st0();
       return;
     }
@@ -645,13 +801,14 @@ void i8087::execute(uint8_t  raw_opcode_id,
     // FPTAN: D9 F2 (reg=6, rm=2)
     if (reg == 6 && rm == 2) {
       double x = st(0);
-      double t = tan(x);
       checkDenormalOperand(x);
-      push_copy(0.0);
+      double t = tan(x);
+      push_copy(1.0);  // push 1.0 as second result
       st(1) = t;
       st(0) = 1.0;
       setTagFromValue(0);
       setTagFromValue(1);
+      updateExceptionsFromResult(t, x, true);
       return;
     }
 
@@ -661,8 +818,10 @@ void i8087::execute(uint8_t  raw_opcode_id,
       double y = st(1);
       checkDenormalOperand(x);
       checkDenormalOperand(y);
+      double old = st(1);
       st(1) = atan2(y, x);
-      updateExceptionsFromResult(st(1));
+      updateExceptionsFromResult(st(1), old, true);
+      setTagFromValue(1);
       pop_st0();
       return;
     }
@@ -672,20 +831,34 @@ void i8087::execute(uint8_t  raw_opcode_id,
       double x = st(0);
       int e = 0;
       double m = frexp(x, &e); // x = m * 2^e, 0.5 <= |m| < 1
-      push_copy(0.0);
-      st(1) = m;         // significand
-      st(0) = (double)e; // exponent
+      push_copy(m);            // push significand first
+      st(0) = (double)e;       // exponent becomes new ST(0)
+      setTagFromValue(0);
+      setTagFromValue(1);
       return;
     }
 
-    // FPREM1: partial remainder (approximate)
+    // FPREM1: partial remainder (approximate) with IEEE remainder
     if (reg == 6 && rm == 5) {
       double x = st(0);
       double y = st(1);
-      checkDenormalOperand(x);
-      checkDenormalOperand(y);
-      st(0) = fmod(x, y);
-      updateExceptionsFromResult(st(0));
+      if (y == 0.0) {
+        m_statusWord |= (1u << 2); // ZE
+        st(0) = NAN;
+        return;
+      }
+      double q = roundToMode(x / y); // nearest integer
+      double r = x - q * y;
+      // Set C0, C1, C2, C3 according to specification (simplified)
+      m_statusWord &= ~((1u<<8)|(1u<<9)|(1u<<10)|(1u<<14));
+      if (r == 0.0) m_statusWord |= (1u<<14); // C3 exact
+      if (fabs(q) != 0.0) {
+        // C1 indicates if the quotient was rounded up (odd)
+        if (fmod(fabs(q), 2.0) != 0.0) m_statusWord |= (1u<<9);
+      }
+      st(0) = r;
+      setTagFromValue(0);
+      updateExceptionsFromResult(r, x, true);
       return;
     }
 
@@ -693,10 +866,21 @@ void i8087::execute(uint8_t  raw_opcode_id,
     if (reg == 7 && rm == 0) {
       double x = st(0);
       double y = st(1);
-      checkDenormalOperand(x);
-      checkDenormalOperand(y);
-      st(0) = fmod(x, y);
-      updateExceptionsFromResult(st(0));
+      if (y == 0.0) {
+        m_statusWord |= (1u << 2); // ZE
+        st(0) = NAN;
+        return;
+      }
+      double q = trunc(x / y); // truncate toward zero
+      double r = x - q * y;
+      m_statusWord &= ~((1u<<8)|(1u<<9)|(1u<<10)|(1u<<14));
+      if (r == 0.0) m_statusWord |= (1u<<14);
+      if (fabs(q) != 0.0) {
+        if (fmod(fabs(q), 2.0) != 0.0) m_statusWord |= (1u<<9);
+      }
+      st(0) = r;
+      setTagFromValue(0);
+      updateExceptionsFromResult(r, x, true);
       return;
     }
 
@@ -706,8 +890,10 @@ void i8087::execute(uint8_t  raw_opcode_id,
       double y = st(1);
       checkDenormalOperand(x);
       checkDenormalOperand(y);
+      double old = st(1);
       st(1) = y * (log(x + 1.0) / log(2.0));
-      updateExceptionsFromResult(st(1));
+      updateExceptionsFromResult(st(1), old, true);
+      setTagFromValue(1);
       pop_st0();
       return;
     }
@@ -720,8 +906,10 @@ void i8087::execute(uint8_t  raw_opcode_id,
         m_statusWord |= (1u << 0); // IE
         st(0) = NAN;
       } else {
+        double old = st(0);
         st(0) = sqrt(x);
-        updateExceptionsFromResult(st(0));
+        updateExceptionsFromResult(st(0), old, true);
+        setTagFromValue(0);
       }
       return;
     }
@@ -729,12 +917,16 @@ void i8087::execute(uint8_t  raw_opcode_id,
     // FSINCOS: ST(0)=cos(x), push ST(1)=sin(x)
     if (reg == 7 && rm == 3) {
       double x = st(0);
+      checkDenormalOperand(x);
       double s = sin(x);
       double c = cos(x);
-      checkDenormalOperand(x);
-      push_copy(0.0);
+      push_copy(c);
       st(1) = s;
       st(0) = c;
+      setTagFromValue(0);
+      setTagFromValue(1);
+      updateExceptionsFromResult(s, x, true);
+      updateExceptionsFromResult(c, x, true);
       return;
     }
 
@@ -742,13 +934,10 @@ void i8087::execute(uint8_t  raw_opcode_id,
     if (reg == 7 && rm == 4) {
       double v  = st(0);
       double vr = roundToMode(v);
-
-      // PE (Precision) if rounding occurred
-      if (vr != v)
-        m_statusWord |= (1u << 5);
-
+      setPrecisionFlagIfNeeded(v, vr);
       st(0) = vr;
       setTagFromValue(0);
+      updateExceptionsFromResult(vr, v, false);
       return;
     }
 
@@ -758,9 +947,35 @@ void i8087::execute(uint8_t  raw_opcode_id,
       double y = st(1);
       checkDenormalOperand(x);
       checkDenormalOperand(y);
+
+      // Handle NaN and infinity in the exponent
+      if (isnan(y)) {
+        m_statusWord |= (1u << 0); // IE
+        st(0) = NAN;
+        setTagFromValue(0);
+        return;
+      }
+      if (isinf(y)) {
+        // If y is infinite, result depends on x and sign of y
+        if (x == 0.0) {
+          st(0) = NAN; // 0 * 2^inf -> invalid
+          m_statusWord |= (1u << 0); // IE
+        } else if (isinf(x)) {
+          st(0) = x; // keep infinity
+        } else {
+          // y = +inf -> scale up to infinity, y = -inf -> scale down to 0
+          st(0) = (y > 0) ? copysign(INFINITY, x) : 0.0;
+        }
+        setTagFromValue(0);
+        updateExceptionsFromResult(st(0), x, true);
+        return;
+      }
+
       int n = (int) floor(y);
+      double old = st(0);
       st(0) = ldexp(x, n);
-      updateExceptionsFromResult(st(0));
+      updateExceptionsFromResult(st(0), old, true);
+      setTagFromValue(0);
       return;
     }
 
@@ -768,7 +983,10 @@ void i8087::execute(uint8_t  raw_opcode_id,
     if (reg == 7 && rm == 6) {
       double x = st(0);
       checkDenormalOperand(x);
+      double old = st(0);
       st(0) = sin(x);
+      updateExceptionsFromResult(st(0), old, true);
+      setTagFromValue(0);
       return;
     }
 
@@ -776,7 +994,10 @@ void i8087::execute(uint8_t  raw_opcode_id,
     if (reg == 7 && rm == 7) {
       double x = st(0);
       checkDenormalOperand(x);
+      double old = st(0);
       st(0) = cos(x);
+      updateExceptionsFromResult(st(0), old, true);
+      setTagFromValue(0);
       return;
     }
   }
@@ -787,122 +1008,113 @@ void i8087::execute(uint8_t  raw_opcode_id,
 
   // FLD m32: D9 /0
   if (opcode == 0xD9 && reg == 0 && mod != 3) {
+    double v = load_m32(rm_addr);
+    push_copy(v);
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    double v = load_m32((uint32_t)rm_addr);
-    fpu_sp = (fpu_sp - 1) & 7;
-    st(0) = v;
-    setTagFromValue(0);
+    checkDenormalOperand(v);
     return;
   }
 
   // FLD m64: DD /0
   if (opcode == 0xDD && reg == 0 && mod != 3) {
+    double v = load_m64(rm_addr);
+    push_copy(v);
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    double v = load_m64((uint32_t)rm_addr);
-    fpu_sp = (fpu_sp - 1) & 7;
-    st(0) = v;
-    setTagFromValue(0);
+    checkDenormalOperand(v);
     return;
   }
 
   // FLD m80real: DB /5
   if (opcode == 0xDB && reg == 5 && mod != 3) {
+    double v = load_m80(rm_addr);
+    push_copy(v);
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    double v = load_m80((uint32_t)rm_addr);
-    fpu_sp = (fpu_sp - 1) & 7;
-    st(0) = v;
-    setTagFromValue(0);
+    checkDenormalOperand(v);
     return;
   }
 
   // FST m32: D9 /2
   if (opcode == 0xD9 && reg == 2 && mod != 3) {
+    store_m32(rm_addr, st(0));
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    store_m32((uint32_t)rm_addr, st(0));
     return;
   }
 
   // FST m64: DD /2
   if (opcode == 0xDD && reg == 2 && mod != 3) {
+    store_m64(rm_addr, st(0));
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    store_m64((uint32_t)rm_addr, st(0));
     return;
   }
 
   // FST m80real: DD /6
   if (opcode == 0xDD && reg == 6 && mod != 3) {
+    store_m80(rm_addr, st(0));
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    store_m80((uint32_t)rm_addr, st(0));
     return;
   }
 
   // FSTP m32: D9 /3
   if (opcode == 0xD9 && reg == 3 && mod != 3) {
+    store_m32(rm_addr, st(0));
+    pop_st0();
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    store_m32((uint32_t)rm_addr, st(0));
-    pop_st0();
     return;
   }
 
   // FSTP m64: DD /3
   if (opcode == 0xDD && reg == 3 && mod != 3) {
+    store_m64(rm_addr, st(0));
+    pop_st0();
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    store_m64((uint32_t)rm_addr, st(0));
-    pop_st0();
     return;
   }
 
   // FSTP m80real: DB /7
   if (opcode == 0xDB && reg == 7 && mod != 3) {
+    store_m80(rm_addr, st(0));
+    pop_st0();
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    store_m80((uint32_t)rm_addr, st(0));
-    pop_st0();
     return;
   }
 
   // -----------------------------------------------------------------------
-  // FILD - Load integer into FPU (encodings 16-bit)
+  // FILD - Load integer into FPU
   // -----------------------------------------------------------------------
 
   // FILD m16: DF /0
   if (opcode == 0xDF && reg == 0 && mod != 3) {
+    int16_t v = load_i16(rm_addr);
+    push_copy((double)v);
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    int16_t v = load_i16((uint32_t)rm_addr);
-    fpu_sp = (fpu_sp - 1) & 7;
-    st(0) = (double)v;
-    setTagFromValue(0);
     return;
   }
 
   // FILD m32: DB /0
   if (opcode == 0xDB && reg == 0 && mod != 3) {
+    int32_t v = load_i32(rm_addr);
+    push_copy((double)v);
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    int32_t v = load_i32((uint32_t)rm_addr);
-    fpu_sp = (fpu_sp - 1) & 7;
-    st(0) = (double)v;
-    setTagFromValue(0);
     return;
   }
 
   // FILD m64: DF /5
   if (opcode == 0xDF && reg == 5 && mod != 3) {
+    int64_t v = load_i64(rm_addr);
+    push_copy((double)v);
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-    int64_t v = load_i64((uint32_t)rm_addr);
-    fpu_sp = (fpu_sp - 1) & 7;
-    st(0) = (double)v;
-    setTagFromValue(0);
     return;
   }
 
@@ -910,82 +1122,76 @@ void i8087::execute(uint8_t  raw_opcode_id,
   // FIST / FISTP - Store integer
   // -----------------------------------------------------------------------
 
-  // FIST m16/m32: DB /2 (with Control Word + PE)
-  if (opcode == 0xDB && reg == 2 && mod != 3) {
+  // FIST m16: DF /2
+  if (opcode == 0xDF && reg == 2 && mod != 3) {
+    double v = st(0);
+    double vr = roundToMode(v);
+    setPrecisionFlagIfNeeded(v, vr);
+    int16_t iv = (int16_t)vr;
+    store_i16(rm_addr, iv);
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-
-    double v  = st(0);
-    double vr = roundToMode(v);
-
-    // PE (precision) if rounding happened
-    if (vr != v)
-      m_statusWord |= (1u << 5);
-
-    if (i_w == 0) {
-      int16_t iv = (int16_t) vr;
-      store_i16((uint32_t)rm_addr, iv);
-    } else {
-      int32_t iv = (int32_t) vr;
-      store_i32((uint32_t)rm_addr, iv);
-    }
     return;
   }
 
-  // FISTP m16/m32: DB /3 (with Control Word + PE)
-  if (opcode == 0xDB && reg == 3 && mod != 3) {
-    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
-    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-
+  // FIST m16/m32: DB /2 (if i_w == 0 -> 16-bit, i_w == 1 -> 32-bit)
+  if (opcode == 0xDB && reg == 2 && mod != 3) {
     double v  = st(0);
     double vr = roundToMode(v);
-
-    if (vr != v)
-      m_statusWord |= (1u << 5); // PE
-
+    setPrecisionFlagIfNeeded(v, vr);
     if (i_w == 0) {
       int16_t iv = (int16_t) vr;
-      store_i16((uint32_t)rm_addr, iv);
+      store_i16(rm_addr, iv);
     } else {
       int32_t iv = (int32_t) vr;
-      store_i32((uint32_t)rm_addr, iv);
+      store_i32(rm_addr, iv);
     }
-
-    pop_st0();
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
     return;
   }
 
   // FISTP m16: DF /3
   if (opcode == 0xDF && reg == 3 && mod != 3) {
+    double v = st(0);
+    double vr = roundToMode(v);
+    setPrecisionFlagIfNeeded(v, vr);
+    int16_t iv = (int16_t)vr;
+    store_i16(rm_addr, iv);
+    pop_st0();
     m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
     m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
+    return;
+  }
 
+  // FISTP m16/m32: DB /3
+  if (opcode == 0xDB && reg == 3 && mod != 3) {
     double v  = st(0);
     double vr = roundToMode(v);
-
-    if (vr != v)
-      m_statusWord |= (1u << 5); // PE
-
-    int16_t iv = (int16_t) vr;
-    store_i16((uint32_t)rm_addr, iv);
+    setPrecisionFlagIfNeeded(v, vr);
+    if (i_w == 0) {
+      int16_t iv = (int16_t) vr;
+      store_i16(rm_addr, iv);
+    } else {
+      int32_t iv = (int32_t) vr;
+      store_i32(rm_addr, iv);
+    }
     pop_st0();
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
     return;
   }
 
   // FISTP m64: DF /7
   if (opcode == 0xDF && reg == 7 && mod != 3) {
-    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
-    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-
     double v  = st(0);
     double vr = roundToMode(v);
-
-    if (vr != v)
-      m_statusWord |= (1u << 5); // PE
-
+    setPrecisionFlagIfNeeded(v, vr);
     int64_t iv = (int64_t) vr;
-    store_i64((uint32_t)rm_addr, iv);
+    store_i64(rm_addr, iv);
     pop_st0();
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
     return;
   }
 
@@ -993,28 +1199,27 @@ void i8087::execute(uint8_t  raw_opcode_id,
   // FIADD / FISUB / FISUBR / FIMUL / FIDIV / FIDIVR / FICOM / FICOMP
   // -----------------------------------------------------------------------
   if ((opcode == 0xDE || opcode == 0xDA) && mod != 3) {
-    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
-    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
-
     double src;
     if (opcode == 0xDE) {
-      int16_t v16 = load_i16((uint32_t)rm_addr);
+      int16_t v16 = load_i16(rm_addr);
       src = (double)v16;
     } else {
-      int32_t v32 = load_i32((uint32_t)rm_addr);
+      int32_t v32 = load_i32(rm_addr);
       src = (double)v32;
     }
-
     checkDenormalOperand(st(0));
     checkDenormalOperand(src);
+    double old = st(0);
     switch (reg & 7) {
       case 0: // FIADD
         st(0) = st(0) + src;
-        updateExceptionsFromResult(st(0));
+        updateExceptionsFromResult(st(0), old, true);
+        setTagFromValue(0);
         break;
       case 1: // FIMUL
         st(0) = st(0) * src;
-        updateExceptionsFromResult(st(0));
+        updateExceptionsFromResult(st(0), old, true);
+        setTagFromValue(0);
         break;
       case 2: // FICOM
         setCompareFlags(st(0), src);
@@ -1025,21 +1230,24 @@ void i8087::execute(uint8_t  raw_opcode_id,
         break;
       case 4: // FISUB
         st(0) = st(0) - src;
-        updateExceptionsFromResult(st(0));
+        updateExceptionsFromResult(st(0), old, true);
+        setTagFromValue(0);
         break;
       case 5: // FISUBR
         st(0) = src - st(0);
-        updateExceptionsFromResult(st(0));
+        updateExceptionsFromResult(st(0), old, true);
+        setTagFromValue(0);
         break;
       case 6: // FIDIV
         if (src == 0.0) {
-          m_statusWord |= (1u << 2); // ZE
+          m_statusWord |= (1u << 2); // ZE (Zero divide)
           st(0) = copysign(INFINITY, st(0));
-          m_statusWord |= (1u << 3); // OE
+          // No OE set
         } else {
           st(0) = st(0) / src;
-          updateExceptionsFromResult(st(0));
+          updateExceptionsFromResult(st(0), old, true);
         }
+        setTagFromValue(0);
         break;
       case 7: // FIDIVR
         if (st(0) == 0.0) {
@@ -1049,17 +1257,19 @@ void i8087::execute(uint8_t  raw_opcode_id,
           } else {
             m_statusWord |= (1u << 2); // ZE
             st(0) = copysign(INFINITY, src);
-            m_statusWord |= (1u << 3); // OE
           }
         } else {
           st(0) = src / st(0);
-          updateExceptionsFromResult(st(0));
+          updateExceptionsFromResult(st(0), old, true);
         }
+        setTagFromValue(0);
         break;
       default:
-        printf("8087 unimplemented FIxxx: ESC %02X /%d (mod=%d rm=%d)\n", opcode, reg, mod, rm);
+        FPU_PRINT("8087 unimplemented FIxxx: ESC %02X /%d (mod=%d rm=%d)\n", opcode, reg, mod, rm);
         break;
     }
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
     return;
   }
 
@@ -1071,6 +1281,7 @@ void i8087::execute(uint8_t  raw_opcode_id,
     if (opcode == 0xD8) {
       checkDenormalOperand(st(0));
       checkDenormalOperand(st(rm));
+      double old = st(0);
       switch (reg & 7) {
         case 0: st(0) = st(0) + st(rm); break; // FADD
         case 1: st(0) = st(0) * st(rm); break; // FMUL
@@ -1081,6 +1292,10 @@ void i8087::execute(uint8_t  raw_opcode_id,
         case 6: st(0) = st(0) / st(rm); break; // FDIV
         case 7: st(0) = st(rm) / st(0); break; // FDIVR
       }
+      if ((reg & 7) != 2 && (reg & 7) != 3) {
+        updateExceptionsFromResult(st(0), old, true);
+        setTagFromValue(0);
+      }
       return;
     }
 
@@ -1088,15 +1303,20 @@ void i8087::execute(uint8_t  raw_opcode_id,
     if (opcode == 0xDC) {
       checkDenormalOperand(st(0));
       checkDenormalOperand(st(rm));
+      double old = st(rm);
       switch (reg & 7) {
         case 0: st(rm) = st(rm) + st(0); break;
         case 1: st(rm) = st(rm) * st(0); break;
-        case 2: setCompareFlags(st(rm), st(0)); break; // FCOM
-        case 3: setCompareFlags(st(rm), st(0)); pop_st0(); break; // FCOMP
+        case 2: setCompareFlags(st(rm), st(0)); break;
+        case 3: setCompareFlags(st(rm), st(0)); pop_st0(); break;
         case 4: st(rm) = st(rm) - st(0); break;
         case 5: st(rm) = st(0) - st(rm); break;
         case 6: st(rm) = st(rm) / st(0); break;
         case 7: st(rm) = st(0) / st(rm); break;
+      }
+      if ((reg & 7) != 2 && (reg & 7) != 3) {
+        updateExceptionsFromResult(st(rm), old, true);
+        setTagFromValue(rm);
       }
       return;
     }
@@ -1111,35 +1331,33 @@ void i8087::execute(uint8_t  raw_opcode_id,
 
     // FADDP/FMULP/FSUBP/FSUBRP/FDIVP/FDIVRP ST(i), ST(0)
     if (opcode == 0xDE) {
+      double old = st(rm);
       switch (reg & 7) {
         case 0: // FADDP ST(i), ST(0)
           st(rm) = st(rm) + st(0);
-          pop_st0();
           break;
         case 1: // FMULP ST(i), ST(0)
           st(rm) = st(rm) * st(0);
-          pop_st0();
           break;
         case 4: // FSUBP ST(i), ST(0)
           st(rm) = st(rm) - st(0);
-          pop_st0();
           break;
         case 5: // FSUBRP ST(i), ST(0)
           st(rm) = st(0) - st(rm);
-          pop_st0();
           break;
         case 6: // FDIVP ST(i), ST(0)
           st(rm) = st(rm) / st(0);
-          pop_st0();
           break;
         case 7: // FDIVRP ST(i), ST(0)
           st(rm) = st(0) / st(rm);
-          pop_st0();
           break;
         default:
-          printf("8087 unimplemented: ESC DE /%d (FxxP) mod=%d rm=%d\n", reg, mod, rm);
+          FPU_PRINT("8087 unimplemented: ESC DE /%d (FxxP) mod=%d rm=%d\n", reg, mod, rm);
           break;
       }
+      updateExceptionsFromResult(st(rm), old, true);
+      setTagFromValue(rm);
+      pop_st0();
       return;
     }
 
@@ -1149,7 +1367,7 @@ void i8087::execute(uint8_t  raw_opcode_id,
       return;
     }
 
-    printf("8087 unimplemented: ESC %02X / %d (mod=%d rm=%d) reg-reg\n", opcode, reg, mod, rm);
+    FPU_PRINT("8087 unimplemented: ESC %02X / %d (mod=%d rm=%d) reg-reg\n", opcode, reg, mod, rm);
     return;
   }
 
@@ -1159,47 +1377,58 @@ void i8087::execute(uint8_t  raw_opcode_id,
 
   // D8 m32real
   if (opcode == 0xD8 && mod != 3) {
-    double m = load_m32((uint32_t)rm_addr);
+    double m = load_m32(rm_addr);
     checkDenormalOperand(st(0));
     checkDenormalOperand(m);
+    double old = st(0);
     switch (reg & 7) {
-      case 0: st(0) = st(0) + m; break; // FADD
-      case 1: st(0) = st(0) * m; break; // FMUL
-      case 2: setCompareFlags(st(0), m); break; // FCOM
-      case 3: setCompareFlags(st(0), m); pop_st0(); break; // FCOMP
-      case 4: st(0) = st(0) - m; break; // FSUB
-      case 5: st(0) = m - st(0); break; // FSUBR
-      case 6: st(0) = st(0) / m; break; // FDIV
-      case 7: st(0) = m / st(0); break; // FDIVR
+      case 0: st(0) = st(0) + m; break;
+      case 1: st(0) = st(0) * m; break;
+      case 2: setCompareFlags(st(0), m); break;
+      case 3: setCompareFlags(st(0), m); pop_st0(); break;
+      case 4: st(0) = st(0) - m; break;
+      case 5: st(0) = m - st(0); break;
+      case 6: st(0) = st(0) / m; break;
+      case 7: st(0) = m / st(0); break;
     }
+    if ((reg & 7) != 2 && (reg & 7) != 3) {
+      updateExceptionsFromResult(st(0), old, true);
+      setTagFromValue(0);
+    }
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
     return;
   }
 
   // DC m64real
   if (opcode == 0xDC && mod != 3) {
-    double m = load_m64((uint32_t)rm_addr);
+    double m = load_m64(rm_addr);
     checkDenormalOperand(st(0));
     checkDenormalOperand(m);
+    double old = st(0);
     switch (reg & 7) {
-      case 0: st(0) = st(0) + m; break; // FADD
-      case 1: st(0) = st(0) * m; break; // FMUL
-      case 2: setCompareFlags(st(0), m); break; // FCOM
-      case 3: setCompareFlags(st(0), m); pop_st0(); break; // FCOMP
-      case 4: st(0) = st(0) - m; break; // FSUB
-      case 5: st(0) = m - st(0); break; // FSUBR
-      case 6: st(0) = st(0) / m; break; // FDIV
-      case 7: st(0) = m / st(0); break; // FDIVR
-      default:
-        printf("8087 unimplemented: ESC DC /%d m64 mod=%d rm=%d\n", reg, mod, rm);
-        break;
+      case 0: st(0) = st(0) + m; break;
+      case 1: st(0) = st(0) * m; break;
+      case 2: setCompareFlags(st(0), m); break;
+      case 3: setCompareFlags(st(0), m); pop_st0(); break;
+      case 4: st(0) = st(0) - m; break;
+      case 5: st(0) = m - st(0); break;
+      case 6: st(0) = st(0) / m; break;
+      case 7: st(0) = m / st(0); break;
     }
+    if ((reg & 7) != 2 && (reg & 7) != 3) {
+      updateExceptionsFromResult(st(0), old, true);
+      setTagFromValue(0);
+    }
+    m_fpuDP = (uint16_t)(rm_addr & 0xFFFF);
+    m_fpuDS = (uint16_t)((rm_addr >> 4) & 0xFFFF);
     return;
   }
 
   // -----------------------------------------------------------------------
   // Any other 8087 opcode
   // -----------------------------------------------------------------------
-  printf("8087 unimplemented: ESC %02X / %d (mod=%d rm=%d)\n", opcode, reg, mod, rm);
+  FPU_PRINT("8087 unimplemented: ESC %02X / %d (mod=%d rm=%d)\n", opcode, reg, mod, rm);
 }
 
 } // end of namespace

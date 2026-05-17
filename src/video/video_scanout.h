@@ -188,7 +188,11 @@ private:
   void drawOSDPause(int pixelsLine, int scanLines, int charScanline, int textRow, uint8_t *dst);
 
   void compositeFilter(uint8_t *dst, int width);
-  static uint8_t compositeRGB222_core(uint8_t curRGB, uint8_t prevRGB);
+#if 0
+  uint8_t compositeRGB222_core(uint8_t curRGB, uint8_t prevRGB);
+#else
+  uint8_t compositeRGB222_core(uint8_t p2, uint8_t p1, uint8_t p0);
+#endif
 };
 
 } // end of namespace
